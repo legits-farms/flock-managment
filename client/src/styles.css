@@ -1443,13 +1443,6 @@ button.photo-link {
   height: 40px;
 }
 
-/* Shift rows show the full reason instead of cutting it off */
-
-.record-meta.wrap {
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
 /* A listed coop with no birds in it: shown, but nothing to open */
 
 .batch.empty-coop {
@@ -1470,4 +1463,49 @@ button.photo-link {
 .batch.empty-coop:active {
   transform: none;
   border-color: var(--line);
+}
+
+/* Shift detail: from → to */
+
+.shift-route {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 14px 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--cream);
+}
+
+.shift-route > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.shift-route small {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brown-soft);
+}
+
+.shift-route strong {
+  font-size: 1.1rem;
+  color: var(--brown);
+  overflow-wrap: anywhere;
+}
+
+.shift-route span {
+  font-size: 0.82rem;
+  color: var(--brown-soft);
+}
+
+.shift-route .shift-arrow {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--orange);
 }

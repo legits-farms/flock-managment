@@ -33,7 +33,7 @@ export default function ShiftForm({ batches, farms, coopsByFarm, onSaved, onCanc
 
   const fromGroups = groups.filter((g) => fromFarm !== null && sameName(g.farm, fromFarm));
   const group = fromGroups.find((g) => g.key === fromKey);
-  // A coop holding a single batch needs no batch choice
+  // With a single batch in the coop it is chosen already; otherwise the person picks
   const entry =
     group?.entries.length === 1
       ? group.entries[0]
@@ -139,27 +139,20 @@ export default function ShiftForm({ batches, farms, coopsByFarm, onSaved, onCanc
             />
           </div>
 
-          {group && group.entries.length > 1 && (
-            <div className="field">
-              <label htmlFor="shift-batch">Batch</label>
-              <Dropdown
-                id="shift-batch"
-                value={batchId}
-                options={group.entries.map(({ batch, coop }) => ({
-                  value: batch._id,
-                  label: `${batch.batchName} (${formatNumber(coopLive(coop))} live)`,
-                }))}
-                onChange={setBatchId}
-                placeholder="Select batch"
-              />
-            </div>
-          )}
-
-          {entry && group.entries.length === 1 && (
-            <p className="hint">
-              Batch: {entry.batch.batchName} · {entry.batch.breed}
-            </p>
-          )}
+          {/* Always asked: a coop can hold more than one batch */}
+          <div className="field">
+            <label htmlFor="shift-batch">Batch</label>
+            <Dropdown
+              id="shift-batch"
+              value={entry?.batch._id ?? ''}
+              options={(group?.entries ?? []).map(({ batch, coop }) => ({
+                value: batch._id,
+                label: `${batch.batchName} · ${batch.breed} (${formatNumber(coopLive(coop))} live)`,
+              }))}
+              onChange={setBatchId}
+              placeholder={group ? 'Select batch' : 'Select coop first'}
+            />
+          </div>
         </fieldset>
 
         <fieldset className="group">

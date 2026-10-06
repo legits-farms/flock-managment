@@ -3,6 +3,7 @@ import { getAllMortalities, getAllShifts, getAllVaccinations } from '../api.js';
 import { formatNumber } from '../flock.js';
 import Dropdown from './Dropdown.jsx';
 import RecordDetail from './RecordDetail.jsx';
+import ShiftDetail from './ShiftDetail.jsx';
 
 // View ids match the API path and the RecordDetail `kind`
 const VIEWS = [
@@ -47,7 +48,7 @@ function matches(kind, r, filters) {
 }
 
 // Full vaccination, mortality and shift history across every batch, newest first.
-// Tapping a vaccination or mortality record opens its details.
+// Tapping a record opens its details.
 export default function Records({ onOpenBatch }) {
   const [view, setView] = useState('vaccinations');
   const [records, setRecords] = useState(null);
@@ -69,6 +70,12 @@ export default function Records({ onOpenBatch }) {
       cancelled = true;
     };
   }, []);
+
+  if (selected && view === 'shifts') {
+    return (
+      <ShiftDetail shift={selected} onBack={() => setSelected(null)} onOpenBatch={onOpenBatch} />
+    );
+  }
 
   if (selected) {
     return (
@@ -246,26 +253,32 @@ export default function Records({ onOpenBatch }) {
           <ul className="record-list">
             {view === 'shifts' &&
               list.map((s) => (
-                <li key={s._id} className="card record">
-                  <span className="record-icon" aria-hidden="true">
-                    ⇄
-                  </span>
+                <li key={s._id}>
+                  <button type="button" className="card record" onClick={() => setSelected(s)}>
+                    <span className="record-icon" aria-hidden="true">
+                      ⇄
+                    </span>
 
-                  <span className="record-body">
-                    <span className="record-top">
-                      <strong>{formatNumber(s.birds)} birds</strong>
-                      <small>{formatDate(s.date)}</small>
+                    <span className="record-body">
+                      <span className="record-top">
+                        <strong>{formatNumber(s.birds)} birds</strong>
+                        <small>{formatDate(s.date)}</small>
+                      </span>
+                      <span className="record-place">
+                        {s.fromFarm && `${s.fromFarm} · `}
+                        {s.fromCoopName} → {s.toFarm && `${s.toFarm} · `}
+                        {s.toCoopName}
+                      </span>
+                      <span className="record-meta">
+                        {s.batch?.batchName ?? 'Deleted batch'} · {s.reason}
+                        {s.createdBy?.name && ` · By ${s.createdBy.name}`}
+                      </span>
                     </span>
-                    <span className="record-place">
-                      {s.fromFarm && `${s.fromFarm} · `}
-                      {s.fromCoopName} → {s.toFarm && `${s.toFarm} · `}
-                      {s.toCoopName}
+
+                    <span className="alert-go" aria-hidden="true">
+                      ›
                     </span>
-                    <span className="record-meta wrap">
-                      {s.batch?.batchName ?? 'Deleted batch'} · {s.reason}
-                      {s.createdBy?.name && ` · By ${s.createdBy.name}`}
-                    </span>
-                  </span>
+                  </button>
                 </li>
               ))}
 
