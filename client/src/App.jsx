@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getBatches, getMe, hasToken, logout } from './api.js';
-import { coopGroups } from './flock.js';
+import { getBatches, getMe, getOptions, hasToken, logout } from './api.js';
+import { batchesOnFarm, coopGroups } from './flock.js';
 import logo from './assets/logo.webp';
 import AuthScreen from './components/AuthScreen.jsx';
 import BatchForm from './components/BatchForm.jsx';
@@ -8,6 +8,8 @@ import BatchList from './components/BatchList.jsx';
 import CoopList from './components/CoopList.jsx';
 import CoopPage from './components/CoopPage.jsx';
 import Dashboard from './components/Dashboard.jsx';
+import FarmPage from './components/FarmPage.jsx';
+import Farms from './components/Farms.jsx';
 import ManageFlock from './components/ManageFlock.jsx';
 import RecordForm from './components/RecordForm.jsx';
 import Records from './components/Records.jsx';
@@ -17,6 +19,7 @@ const TABS = [
   { id: 'batches', label: 'Batches', icon: '☰' },
   { id: 'coops', label: 'Coops', icon: '⌂' },
   { id: 'records', label: 'Records', icon: '▤' },
+  { id: 'farms', label: 'Farms', icon: '◈' },
 ];
 
 export default function App() {
@@ -58,7 +61,11 @@ function Flock({ user, onLogout }) {
   const [action, setAction] = useState(null);
   // Key of the coop page being viewed (see coopGroups), or null
   const [coopKey, setCoopKey] = useState(null);
+  // Name of the farm page being viewed, or null
+  const [farmName, setFarmName] = useState(null);
   const [batches, setBatches] = useState([]);
+  // Fixed farm and coop lists to pick from
+  const [options, setOptions] = useState({ farms: [], coops: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -78,6 +85,14 @@ function Flock({ user, onLogout }) {
     loadBatches();
   }, [loadBatches]);
 
+  // Refreshed whenever a form that uses the lists opens, so a failed first load
+  // or a farm / coop added on another phone does not leave the dropdowns stale
+  useEffect(() => {
+    getOptions()
+      .then(setOptions)
+      .catch(() => {});
+  }, [entering, managingId, tab]);
+
   function handleRegistered(batch) {
     setBatches((prev) => [batch, ...prev]);
     // Go straight to coop allocation for the new batch
@@ -95,7 +110,13 @@ function Flock({ user, onLogout }) {
     setManagingId(null);
     setAction(null);
     setCoopKey(null);
+    setFarmName(null);
     setTab(id);
+  }
+
+  function openCoop(key) {
+    goToTab('coops');
+    setCoopKey(key);
   }
 
   function openBatch(id) {
@@ -127,7 +148,11 @@ function Flock({ user, onLogout }) {
             <button type="button" className="link back" onClick={() => setEntering(false)}>
               ‹ Back
             </button>
-            <BatchForm onRegistered={handleRegistered} />
+            <BatchForm
+              farms={options.farms}
+              onOptions={setOptions}
+              onRegistered={handleRegistered}
+            />
           </div>
         )}
         {!entering &&
@@ -161,6 +186,8 @@ function Flock({ user, onLogout }) {
             <ManageFlock
               key={managing._id}
               batch={managing}
+              coopNames={options.coops}
+              onOptions={setOptions}
               onUpdated={handleUpdated}
               onBack={() => setManagingId(null)}
             />
@@ -194,6 +221,25 @@ function Flock({ user, onLogout }) {
             />
           ))}
         {!entering && tab === 'records' && <Records onOpenBatch={openBatch} />}
+        {!entering &&
+          tab === 'farms' &&
+          (farmName ? (
+            <FarmPage
+              key={farmName}
+              farm={farmName}
+              batches={batchesOnFarm(batches, farmName)}
+              onBack={() => setFarmName(null)}
+              onOpenBatch={openBatch}
+              onOpenCoop={openCoop}
+            />
+          ) : (
+            <Farms
+              farms={options.farms}
+              batches={batches}
+              onOptions={setOptions}
+              onOpen={setFarmName}
+            />
+          ))}
       </main>
 
       <nav className="tab-bar">

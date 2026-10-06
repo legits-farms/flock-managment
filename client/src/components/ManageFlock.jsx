@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { addCoop, removeCoop } from '../api.js';
+import { addCoop, addCoopName, removeCoop } from '../api.js';
 import {
   coopLive,
   formatNumber,
@@ -10,6 +10,7 @@ import {
 } from '../flock.js';
 import useBatchRecords from '../useBatchRecords.js';
 import BatchRecords from './BatchRecords.jsx';
+import OptionSelect from './OptionSelect.jsx';
 
 const formatDate = (value) =>
   new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -21,7 +22,7 @@ const VIEWS = [
   { id: 'activity', label: 'Activity Logs' },
 ];
 
-export default function ManageFlock({ batch, onUpdated, onBack }) {
+export default function ManageFlock({ batch, coopNames, onOptions, onUpdated, onBack }) {
   const [name, setName] = useState('');
   const [birds, setBirds] = useState('');
   const [busy, setBusy] = useState(false);
@@ -30,6 +31,9 @@ export default function ManageFlock({ batch, onUpdated, onBack }) {
   const { records, error: recordsError } = useBatchRecords(batch._id);
 
   const unallocated = unallocatedBirds(batch);
+  // A coop can only be used once per batch
+  const used = new Set(batch.coops.map((coop) => coop.name.toLowerCase()));
+  const freeCoops = coopNames.filter((coop) => !used.has(coop.toLowerCase()));
   const live = liveBirds(batch);
   // null until the batch's vaccination records have loaded
   const vaccinated = records ? vaccinatedBirds(batch, records.vaccinations) : null;
@@ -50,6 +54,10 @@ export default function ManageFlock({ batch, onUpdated, onBack }) {
 
   async function handleAdd(e) {
     e.preventDefault();
+    if (!name) {
+      setError('Please select a coop.');
+      return;
+    }
     const count = Number(birds);
     if (count > unallocated) {
       setError(`Only ${formatNumber(unallocated)} birds are left to allocate.`);
@@ -168,16 +176,18 @@ export default function ManageFlock({ batch, onUpdated, onBack }) {
         <form className="card form" onSubmit={handleAdd}>
           <h2>Add a Coop</h2>
 
-          <label className="field">
-            <span>Coop Name</span>
-            <input
-              type="text"
+          <div className="field">
+            <label htmlFor="coop">Coop</label>
+            <OptionSelect
+              id="coop"
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Coop 1"
-              required
+              names={freeCoops}
+              onChange={setName}
+              placeholder="Select coop"
+              addLabel="Add a coop"
+              onAdd={async (coop) => onOptions(await addCoopName(coop))}
             />
-          </label>
+          </div>
 
           <label className="field">
             <span>Number of Birds</span>

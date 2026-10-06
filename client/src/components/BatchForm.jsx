@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { createBatch } from '../api.js';
+import { addFarm, createBatch } from '../api.js';
 import Dropdown from './Dropdown.jsx';
+import OptionSelect from './OptionSelect.jsx';
 
 const BREEDS = ['Sonali', 'Kadaknath', 'Aseel', 'Fayoumi', 'Quail'].map((breed) => ({
   value: breed,
@@ -29,7 +30,7 @@ const emptyForm = () => ({
   shiftToFarm: '',
 });
 
-export default function BatchForm({ onRegistered }) {
+export default function BatchForm({ farms, onOptions, onRegistered }) {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -45,6 +46,10 @@ export default function BatchForm({ onRegistered }) {
     e.preventDefault();
     if (!form.breed) {
       setError('Please select a breed.');
+      return;
+    }
+    if (!form.shiftToFarm) {
+      setError('Please select a farm.');
       return;
     }
     if (mortality > birds) {
@@ -195,15 +200,18 @@ export default function BatchForm({ onRegistered }) {
         </label>
       </fieldset>
 
-      <label className="field">
-        <span>Shift to Which Farm</span>
-        <input
-          type="text"
+      <div className="field">
+        <label htmlFor="farm">Farm</label>
+        <OptionSelect
+          id="farm"
           value={form.shiftToFarm}
-          onChange={set('shiftToFarm')}
-          placeholder="Optional"
+          names={farms}
+          onChange={setValue('shiftToFarm')}
+          placeholder="Select farm"
+          addLabel="Add a farm"
+          onAdd={async (name) => onOptions(await addFarm(name))}
         />
-      </label>
+      </div>
 
       {error && (
         <p className="error" role="alert">

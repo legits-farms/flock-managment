@@ -49,3 +49,6 @@ export function coopGroups(batches) {
   }
   return [...groups.values()];
 }
+
+export const batchesOnFarm = (batches, farm) =>
+  batches.filter((batch) => (batch.shiftToFarm ?? '').trim().toLowerCase() === farm.toLowerCase());

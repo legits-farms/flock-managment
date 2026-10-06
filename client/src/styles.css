@@ -484,6 +484,11 @@ dt {
   box-shadow: var(--shadow);
 }
 
+.dropdown.up .dropdown-menu {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
 .dropdown-menu button {
   width: 100%;
   min-height: 44px;
@@ -813,7 +818,10 @@ dt {
 /* Bottom tabs: icon stacked over the label */
 
 .tab-bar {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px;
+  padding-left: 6px;
+  padding-right: 6px;
 }
 
 .tab {
@@ -1394,4 +1402,22 @@ button.photo-link {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* "Add a farm / coop" inline entry */
+
+.option-add {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.option-add-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.option-add-actions button {
+  min-height: 44px;
 }

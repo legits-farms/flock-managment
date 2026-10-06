@@ -11,6 +11,11 @@ export default function useBatchRecords(batchIds) {
 
   useEffect(() => {
     let cancelled = false;
+    // No batches means no records (an empty id would ask for every batch's)
+    if (!key) {
+      setRecords({ mortalities: [], vaccinations: [] });
+      return;
+    }
     const ids = key.split(',');
     Promise.all([
       Promise.all(ids.map((id) => getMortalities(id))),

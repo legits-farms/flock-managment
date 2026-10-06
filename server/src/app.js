@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 import { requireAuth } from './auth.js';
 import authRoutes from './routes/auth.js';
 import batchRoutes from './routes/batches.js';
+import optionRoutes from './routes/options.js';
 import { mortalityRouter, vaccinationRouter } from './routes/records.js';
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/flock-management';
@@ -52,6 +53,7 @@ app.use('/api', async (req, res, next) => {
 
 app.use('/api/auth', authRoutes);
 // Everything below needs a logged-in user
+app.use('/api/options', requireAuth, optionRoutes);
 app.use('/api/batches', requireAuth, batchRoutes);
 app.use('/api/mortalities', requireAuth, mortalityRouter);
 app.use('/api/vaccinations', requireAuth, vaccinationRouter);

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { actor } from '../auth.js';
 import Batch from '../models/Batch.js';
+import { listedCoop } from '../options.js';
 
 const router = Router();
 
@@ -54,9 +55,13 @@ router.post('/:id/coops', async (req, res, next) => {
     const batch = await Batch.findById(req.params.id);
     if (!batch) return res.status(404).json({ message: 'Batch not found' });
 
-    const name = String(req.body.name ?? '').trim();
     const birds = Number(req.body.birds);
-    if (!name) return res.status(400).json({ message: 'Coop name is required' });
+    if (!String(req.body.name ?? '').trim()) {
+      return res.status(400).json({ message: 'Select a coop' });
+    }
+    // Coops are a fixed list; new ones are added through /api/options/coops
+    const name = await listedCoop(req.body.name);
+    if (!name) return res.status(400).json({ message: 'Select a coop from the list' });
     if (!Number.isInteger(birds) || birds < 1) {
       return res.status(400).json({ message: 'Number of birds must be a whole number of at least 1' });
     }

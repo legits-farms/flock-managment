@@ -43,6 +43,16 @@ export const getBatches = () => request('/batches');
 export const createBatch = (batch) =>
   request('/batches', { method: 'POST', body: JSON.stringify(batch) });
 
+// Fixed lists to pick from: { farms: [names], coops: [names] }.
+// Adding to either resolves to both updated lists.
+export const getOptions = () => request('/options');
+
+export const addFarm = (name) =>
+  request('/options/farms', { method: 'POST', body: JSON.stringify({ name }) });
+
+export const addCoopName = (name) =>
+  request('/options/coops', { method: 'POST', body: JSON.stringify({ name }) });
+
 // Both coop calls resolve to the updated batch
 export const addCoop = (batchId, coop) =>
   request(`/batches/${batchId}/coops`, { method: 'POST', body: JSON.stringify(coop) });
