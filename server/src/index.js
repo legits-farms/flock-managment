@@ -1,4 +1,5 @@
-// Local / long-running server. On Vercel the app is served by api/index.mjs instead.
+// Local / long-running server. On Vercel the "server" service loads app.js directly
+// (see vercel.json).
 import app, { connectDb } from './app.js';
 
 const PORT = process.env.PORT || 5000;
