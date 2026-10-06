@@ -1030,29 +1030,7 @@ button.photo-link {
   object-fit: contain;
 }
 
-.recent-list.flush {
-  margin-top: 0;
-}
-
-.recent-list.flush li:first-child {
-  padding-top: 0;
-}
-
-/* Clickable record rows and the record detail page */
-
-.recent-list li.clickable {
-  cursor: pointer;
-}
-
-.recent-list li.clickable:active strong {
-  color: var(--orange);
-}
-
-.recent-list li.clickable:focus-visible {
-  outline: 3px solid rgba(238, 102, 32, 0.45);
-  outline-offset: 2px;
-  border-radius: 8px;
-}
+/* Record detail page */
 
 .detail {
   margin-top: 14px;
@@ -1249,4 +1227,171 @@ button.photo-link {
 
 .batch-more .batch-details {
   margin-top: 12px;
+}
+
+/* Records page */
+
+.filter-toggle {
+  min-height: 40px;
+  padding: 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 30px;
+  background: #fff;
+  color: var(--brown-soft);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.filter-toggle.active {
+  border-color: var(--orange);
+  background: var(--orange-soft);
+  color: var(--orange);
+}
+
+/* Bottom-sheet popup */
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(65, 64, 66, 0.45);
+  backdrop-filter: blur(2px);
+  animation: sheet-fade 0.2s ease-out;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 480px;
+  max-height: 88dvh;
+  overflow-y: auto;
+  padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+  border-radius: 24px 24px 0 0;
+  background: var(--cream);
+  box-shadow: 0 -20px 50px -25px rgba(65, 64, 66, 0.6);
+  animation: sheet-up 0.25s ease-out;
+}
+
+.sheet h2 {
+  font-size: 1.2rem;
+}
+
+@keyframes sheet-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-backdrop,
+  .sheet {
+    animation: none;
+  }
+}
+
+.record-summary {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 0.85rem;
+  color: var(--brown-soft);
+}
+
+.record-summary b {
+  color: var(--brown);
+}
+
+.record-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.record {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px;
+  color: var(--ink);
+  text-align: left;
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.record:active {
+  transform: scale(0.99);
+  border-color: var(--orange);
+}
+
+.record-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: var(--orange-soft);
+  color: var(--orange);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.record-icon.mortalities {
+  background: #fdecea;
+  color: var(--red);
+}
+
+.record-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.record-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.record-top strong {
+  font-size: 1rem;
+  color: var(--brown);
+  overflow-wrap: anywhere;
+}
+
+.record-top small {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--brown-soft);
+}
+
+.record-place {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--brown-soft);
+}
+
+.record-meta {
+  font-size: 0.8rem;
+  color: var(--brown-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
