@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getAllMortalities, getAllVaccinations } from '../api.js';
+import { getAllMortalities, getAllShifts, getAllVaccinations } from '../api.js';
 import { formatNumber } from '../flock.js';
 import Dropdown from './Dropdown.jsx';
 import RecordDetail from './RecordDetail.jsx';
@@ -8,6 +8,7 @@ import RecordDetail from './RecordDetail.jsx';
 const VIEWS = [
   { id: 'vaccinations', label: 'Vaccinations' },
   { id: 'mortalities', label: 'Mortality' },
+  { id: 'shifts', label: 'Shifts' },
 ];
 
 const NO_FILTERS = { batchId: '', coopName: '', person: '', from: '', to: '' };
@@ -18,8 +19,19 @@ const formatDate = (value) =>
 // YYYY-MM-DD in local time, comparable with <input type="date"> values
 const dayOf = (value) => new Date(value).toLocaleDateString('en-CA');
 
-// Vaccinations are dated by the day given; mortality by when it was registered
-const recordDate = (kind, r) => (kind === 'vaccinations' ? r.date : r.createdAt);
+// Vaccinations and shifts are dated by the day given; mortality by when it was registered
+const recordDate = (kind, r) => (kind === 'mortalities' ? r.createdAt : r.date);
+
+// A shift involves two coops, the other records one
+const coopsOf = (r) => [r.coopName, r.fromCoopName, r.toCoopName].filter(Boolean);
+
+const EMPTY = {
+  vaccinations: 'No vaccinations added yet.',
+  mortalities: 'No mortality registered yet.',
+  shifts: 'No birds shifted yet.',
+};
+
+const SUMMARY = { vaccinations: 'vaccinated', mortalities: 'lost', shifts: 'shifted' };
 
 const unique = (values) => [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
 
@@ -27,15 +39,15 @@ function matches(kind, r, filters) {
   const day = dayOf(recordDate(kind, r));
   return (
     (!filters.batchId || r.batch?._id === filters.batchId) &&
-    (!filters.coopName || r.coopName === filters.coopName) &&
+    (!filters.coopName || coopsOf(r).includes(filters.coopName)) &&
     (!filters.person || r.createdBy?.name === filters.person) &&
     (!filters.from || day >= filters.from) &&
     (!filters.to || day <= filters.to)
   );
 }
 
-// Full vaccination and mortality history across every batch, newest first.
-// Tapping a record opens its details.
+// Full vaccination, mortality and shift history across every batch, newest first.
+// Tapping a vaccination or mortality record opens its details.
 export default function Records({ onOpenBatch }) {
   const [view, setView] = useState('vaccinations');
   const [records, setRecords] = useState(null);
@@ -46,9 +58,9 @@ export default function Records({ onOpenBatch }) {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([getAllVaccinations(), getAllMortalities()])
-      .then(([vaccinations, mortalities]) => {
-        if (!cancelled) setRecords({ vaccinations, mortalities });
+    Promise.all([getAllVaccinations(), getAllMortalities(), getAllShifts()])
+      .then(([vaccinations, mortalities, shifts]) => {
+        if (!cancelled) setRecords({ vaccinations, mortalities, shifts });
       })
       .catch((err) => {
         if (!cancelled) setError(err.message);
@@ -73,7 +85,9 @@ export default function Records({ onOpenBatch }) {
   const activeFilters = Object.values(filters).filter(Boolean).length;
 
   // Filter choices come from the records themselves
-  const everything = records ? [...records.vaccinations, ...records.mortalities] : [];
+  const everything = records
+    ? [...records.vaccinations, ...records.mortalities, ...records.shifts]
+    : [];
   const batchNames = new Map(
     everything.filter((r) => r.batch).map((r) => [r.batch._id, r.batch.batchName]),
   );
@@ -84,7 +98,7 @@ export default function Records({ onOpenBatch }) {
   const inBatch = everything.filter((r) => !filters.batchId || r.batch?._id === filters.batchId);
   const coopOptions = [
     { value: '', label: 'All coops' },
-    ...unique(inBatch.map((r) => r.coopName)).map((name) => ({ value: name, label: name })),
+    ...unique(inBatch.flatMap(coopsOf)).map((name) => ({ value: name, label: name })),
   ];
   const personOptions = [
     { value: '', label: 'Everyone' },
@@ -213,13 +227,7 @@ export default function Records({ onOpenBatch }) {
 
       {list && list.length === 0 && (
         <div className="status">
-          <p>
-            {activeFilters > 0
-              ? 'No records match these filters.'
-              : view === 'vaccinations'
-                ? 'No vaccinations added yet.'
-                : 'No mortality registered yet.'}
-          </p>
+          <p>{activeFilters > 0 ? 'No records match these filters.' : EMPTY[view]}</p>
           {activeFilters > 0 && (
             <button type="button" className="secondary" onClick={() => setFilters(NO_FILTERS)}>
               Clear filters
@@ -232,40 +240,65 @@ export default function Records({ onOpenBatch }) {
         <>
           <p className="record-summary">
             <b>{formatNumber(list.length)}</b> {list.length === 1 ? 'record' : 'records'} ·{' '}
-            <b>{formatNumber(totalBirds)}</b> birds
-            {view === 'vaccinations' ? ' vaccinated' : ' lost'}
+            <b>{formatNumber(totalBirds)}</b> birds {SUMMARY[view]}
           </p>
 
           <ul className="record-list">
-            {list.map((r) => (
-              <li key={r._id}>
-                <button type="button" className="card record" onClick={() => setSelected(r)}>
-                  <span className={`record-icon ${view}`} aria-hidden="true">
-                    {view === 'vaccinations' ? '+' : '−'}
+            {view === 'shifts' &&
+              list.map((s) => (
+                <li key={s._id} className="card record">
+                  <span className="record-icon" aria-hidden="true">
+                    ⇄
                   </span>
 
                   <span className="record-body">
                     <span className="record-top">
-                      <strong>
-                        {view === 'vaccinations' ? r.vaccine : `${formatNumber(r.birds)} birds`}
-                      </strong>
-                      <small>{formatDate(recordDate(view, r))}</small>
+                      <strong>{formatNumber(s.birds)} birds</strong>
+                      <small>{formatDate(s.date)}</small>
                     </span>
                     <span className="record-place">
-                      {r.batch?.batchName ?? 'Deleted batch'} · {r.coopName}
+                      {s.fromFarm && `${s.fromFarm} · `}
+                      {s.fromCoopName} → {s.toFarm && `${s.toFarm} · `}
+                      {s.toCoopName}
                     </span>
-                    <span className="record-meta">
-                      {view === 'vaccinations' ? `${formatNumber(r.birds)} birds` : r.reason}
-                      {r.createdBy?.name && ` · By ${r.createdBy.name}`}
+                    <span className="record-meta wrap">
+                      {s.batch?.batchName ?? 'Deleted batch'} · {s.reason}
+                      {s.createdBy?.name && ` · By ${s.createdBy.name}`}
                     </span>
                   </span>
+                </li>
+              ))}
 
-                  <span className="alert-go" aria-hidden="true">
-                    ›
-                  </span>
-                </button>
-              </li>
-            ))}
+            {view !== 'shifts' &&
+              list.map((r) => (
+                <li key={r._id}>
+                  <button type="button" className="card record" onClick={() => setSelected(r)}>
+                    <span className={`record-icon ${view}`} aria-hidden="true">
+                      {view === 'vaccinations' ? '+' : '−'}
+                    </span>
+
+                    <span className="record-body">
+                      <span className="record-top">
+                        <strong>
+                          {view === 'vaccinations' ? r.vaccine : `${formatNumber(r.birds)} birds`}
+                        </strong>
+                        <small>{formatDate(recordDate(view, r))}</small>
+                      </span>
+                      <span className="record-place">
+                        {r.batch?.batchName ?? 'Deleted batch'} · {r.coopName}
+                      </span>
+                      <span className="record-meta">
+                        {view === 'vaccinations' ? `${formatNumber(r.birds)} birds` : r.reason}
+                        {r.createdBy?.name && ` · By ${r.createdBy.name}`}
+                      </span>
+                    </span>
+
+                    <span className="alert-go" aria-hidden="true">
+                      ›
+                    </span>
+                  </button>
+                </li>
+              ))}
           </ul>
         </>
       )}

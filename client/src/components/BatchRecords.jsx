@@ -20,11 +20,12 @@ const idTime = (id) => new Date(parseInt(id.slice(0, 8), 16) * 1000);
 const byName = (who) => who?.name ?? '';
 
 // Vaccinations / Mortality / Activity Logs tabs, shared by three pages.
-// `records` is { mortalities, vaccinations }, or null while loading.
-// Pass exactly one of:
-//   batch       – a batch page
-//   entries     – a coop page: the { batch, coop } pairs of every batch in that coop
-//   farmBatches – a farm page: every batch on that farm
+// `records` is { mortalities, vaccinations, shifts }, or null while loading.
+// Pass one of:
+//   batch                 – a batch page
+//   entries               – a coop page: the { batch, coop } pairs of every batch in that coop
+//   farmBatches + entries – a farm page: the batches registered to the farm, and
+//                           the { batch, coop } pairs of every coop on it
 export default function BatchRecords({ view, batch, entries, farmBatches, records, error }) {
   if (error) {
     return (
@@ -39,13 +40,18 @@ export default function BatchRecords({ view, batch, entries, farmBatches, record
   // Batches whose registration and on-arrival mortality belong on this page.
   // A coop page has none: those belong to the batch, not to any one coop.
   const batches = farmBatches ?? (batch ? [batch] : []);
-  const placements =
-    entries ?? batches.flatMap((b) => b.coops.map((coop) => ({ batch: b, coop })));
+  const placements = entries ?? batches.flatMap((b) => b.coops.map((coop) => ({ batch: b, coop })));
 
   const coopIds = entries && new Set(entries.map((entry) => entry.coop._id));
   const inScope = (r) => !coopIds || coopIds.has(r.coopId);
   const mortalities = records.mortalities.filter(inScope);
   const vaccinations = records.vaccinations.filter(inScope);
+  const shifts = (records.shifts ?? []).filter(
+    (s) => !coopIds || coopIds.has(s.fromCoopId) || coopIds.has(s.toCoopId),
+  );
+  // Farms are only worth naming when a shift crosses between them
+  const shiftPlace = (s, name, farm) =>
+    s.fromFarm.toLowerCase() === s.toFarm.toLowerCase() || !farm ? name : `${name} (${farm})`;
 
   // Name whatever the page itself does not already imply
   const batchName = (r) => r.batch?.batchName ?? 'Batch';
@@ -143,17 +149,27 @@ export default function BatchRecords({ view, batch, entries, farmBatches, record
       detail: `${formatNumber(b.numberOfBirds)} birds · ${formatNumber(b.boxMortality)} mortality on arrival`,
       by: byName(b.createdBy),
     })),
-    ...placements.map((entry) => ({
-      key: entry.coop._id,
-      when: idTime(entry.coop._id),
-      title:
-        scope === 'coop'
-          ? `Batch entered · ${entry.batch.batchName}`
-          : scope === 'farm'
-            ? `Coop added · ${entry.batch.batchName} · ${entry.coop.name}`
-            : `Coop added · ${entry.coop.name}`,
-      detail: `${formatNumber(entry.coop.birds)} birds allocated`,
-      by: byName(entry.coop.addedBy),
+    // Coops created by a shift show up as the shift itself, further down
+    ...placements
+      .filter((entry) => !entry.coop.fromShift)
+      .map((entry) => ({
+        key: entry.coop._id,
+        when: idTime(entry.coop._id),
+        title:
+          scope === 'coop'
+            ? `Batch entered · ${entry.batch.batchName}`
+            : scope === 'farm'
+              ? `Coop added · ${entry.batch.batchName} · ${entry.coop.name}`
+              : `Coop added · ${entry.coop.name}`,
+        detail: `${formatNumber(entry.coop.birds)} birds in the coop now`,
+        by: byName(entry.coop.addedBy),
+      })),
+    ...shifts.map((s) => ({
+      key: s._id,
+      when: new Date(s.createdAt),
+      title: `Birds shifted · ${shiftPlace(s, s.fromCoopName, s.fromFarm)} → ${shiftPlace(s, s.toCoopName, s.toFarm)}`,
+      detail: `${scope === 'batch' ? '' : `${batchName(s)} · `}${formatNumber(s.birds)} birds · ${s.reason}`,
+      by: byName(s.createdBy),
     })),
     ...mortalities.map((r) => ({
       key: r._id,

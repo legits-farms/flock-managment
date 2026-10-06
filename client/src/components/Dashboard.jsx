@@ -125,6 +125,14 @@ export default function Dashboard({
           </span>
           Enter Batch
         </button>
+        <button type="button" className="quick" onClick={() => onAction('shift')}>
+          <span className="quick-icon">
+            <Icon>
+              <path d="M4 8h14M14 4l4 4-4 4M20 16H6M10 12l-4 4 4 4" />
+            </Icon>
+          </span>
+          Shift Birds
+        </button>
       </div>
 
       {unallocated > 0 && (

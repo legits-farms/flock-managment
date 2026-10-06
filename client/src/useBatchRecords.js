@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { getMortalities, getVaccinations } from './api.js';
+import { getMortalities, getShifts, getVaccinations } from './api.js';
 
 // Loads the mortality and vaccination records of one batch, or of several
 // when given an array of batch ids.
-// `records` is { mortalities, vaccinations }, or null while loading.
+// `records` is { mortalities, vaccinations, shifts }, or null while loading.
 export default function useBatchRecords(batchIds) {
   const key = [].concat(batchIds).join(',');
   const [records, setRecords] = useState(null);
@@ -13,20 +13,22 @@ export default function useBatchRecords(batchIds) {
     let cancelled = false;
     // No batches means no records (an empty id would ask for every batch's)
     if (!key) {
-      setRecords({ mortalities: [], vaccinations: [] });
+      setRecords({ mortalities: [], vaccinations: [], shifts: [] });
       return;
     }
     const ids = key.split(',');
     Promise.all([
       Promise.all(ids.map((id) => getMortalities(id))),
       Promise.all(ids.map((id) => getVaccinations(id))),
+      Promise.all(ids.map((id) => getShifts(id))),
     ])
-      .then(([mortalities, vaccinations]) => {
+      .then(([mortalities, vaccinations, shifts]) => {
         if (cancelled) return;
         const newestFirst = (a, b) => new Date(b.createdAt) - new Date(a.createdAt);
         setRecords({
           mortalities: mortalities.flat().sort(newestFirst),
           vaccinations: vaccinations.flat().sort(newestFirst),
+          shifts: shifts.flat().sort(newestFirst),
         });
       })
       .catch((err) => {

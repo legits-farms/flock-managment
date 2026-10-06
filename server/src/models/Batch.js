@@ -11,9 +11,14 @@ const coopSchema = new mongoose.Schema({
   birds: {
     type: Number,
     required: [true, 'Number of birds is required'],
-    min: [1, 'Number of birds must be at least 1'],
+    // Can drop to 0 when every bird is shifted out to another coop
+    min: [0, 'Number of birds cannot be negative'],
     validate: wholeNumber,
   },
+  // Only set when the coop is on another farm than the batch's own (birds shifted there)
+  farm: { type: String, trim: true },
+  // Created by a shift rather than by allocating the batch's birds
+  fromShift: { type: Boolean, default: false },
   // Birds lost in this coop, added up from registered mortality records
   mortality: { type: Number, default: 0, min: 0 },
   addedBy: byUser,

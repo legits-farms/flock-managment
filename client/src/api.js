@@ -43,15 +43,15 @@ export const getBatches = () => request('/batches');
 export const createBatch = (batch) =>
   request('/batches', { method: 'POST', body: JSON.stringify(batch) });
 
-// Fixed lists to pick from: { farms: [names], coops: [names] }.
+// Fixed lists to pick from: { farms: [names], coops: { <farm>: [coop names] } }.
 // Adding to either resolves to both updated lists.
 export const getOptions = () => request('/options');
 
 export const addFarm = (name) =>
   request('/options/farms', { method: 'POST', body: JSON.stringify({ name }) });
 
-export const addCoopName = (name) =>
-  request('/options/coops', { method: 'POST', body: JSON.stringify({ name }) });
+export const addCoopName = (farm, name) =>
+  request('/options/coops', { method: 'POST', body: JSON.stringify({ farm, name }) });
 
 // Both coop calls resolve to the updated batch
 export const addCoop = (batchId, coop) =>
@@ -66,6 +66,12 @@ export const createMortality = (record) =>
 
 export const createVaccination = (record) =>
   request('/vaccinations', { method: 'POST', body: JSON.stringify(record) });
+
+// Resolves to { id, batch } with the updated batch
+export const createShift = (shift) =>
+  request('/shifts', { method: 'POST', body: JSON.stringify(shift) });
+
+export const getAllShifts = () => request('/shifts?all=true');
 
 export const getAllMortalities = () => request('/mortalities?all=true');
 
@@ -101,3 +107,5 @@ export const login = (credentials) => authenticate('/auth/login', credentials);
 export const signup = (credentials) => authenticate('/auth/signup', credentials);
 
 export const getMe = () => request('/auth/me');
+
+export const getShifts = (batchId) => request(`/shifts${forBatch(batchId)}`);

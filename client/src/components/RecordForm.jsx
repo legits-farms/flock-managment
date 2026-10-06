@@ -46,7 +46,7 @@ export default function RecordForm({ type, batches, onSaved, onCancel, onNavigat
   const coop = batch?.coops.find((c) => c._id === coopId);
   const coopOptions = (batch?.coops ?? []).map((c) => ({
     value: c._id,
-    label: `${c.name} (${formatNumber(coopLive(c))} live)`,
+    label: `${c.name}${c.farm ? ` · ${c.farm}` : ''} (${formatNumber(coopLive(c))} live)`,
   }));
 
   function chooseBatch(id) {

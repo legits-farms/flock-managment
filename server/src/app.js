@@ -8,6 +8,7 @@ import authRoutes from './routes/auth.js';
 import batchRoutes from './routes/batches.js';
 import optionRoutes from './routes/options.js';
 import { mortalityRouter, vaccinationRouter } from './routes/records.js';
+import shiftRoutes from './routes/shifts.js';
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/flock-management';
 
@@ -57,6 +58,7 @@ app.use('/api/options', requireAuth, optionRoutes);
 app.use('/api/batches', requireAuth, batchRoutes);
 app.use('/api/mortalities', requireAuth, mortalityRouter);
 app.use('/api/vaccinations', requireAuth, vaccinationRouter);
+app.use('/api/shifts', requireAuth, shiftRoutes);
 
 app.use((err, req, res, next) => {
   if (err.name === 'ValidationError') {

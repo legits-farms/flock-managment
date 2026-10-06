@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { actor } from '../auth.js';
 import Batch from '../models/Batch.js';
-import { listedCoop } from '../options.js';
+import { listedCoop, listedFarm } from '../options.js';
 
 const router = Router();
 
@@ -28,6 +28,10 @@ router.post('/', async (req, res, next) => {
       shiftToFarm,
     } = req.body;
 
+    // Coops belong to a farm, so every batch needs one from the list
+    const farm = await listedFarm(shiftToFarm);
+    if (!farm) return res.status(400).json({ message: 'Select a farm' });
+
     const batch = await Batch.create({
       batchName,
       startDate,
@@ -41,7 +45,7 @@ router.post('/', async (req, res, next) => {
         phone: vendor?.phone,
         details: vendor?.details,
       },
-      shiftToFarm,
+      shiftToFarm: farm,
       createdBy: actor(req),
     });
     res.status(201).json(batch);
@@ -59,13 +63,20 @@ router.post('/:id/coops', async (req, res, next) => {
     if (!String(req.body.name ?? '').trim()) {
       return res.status(400).json({ message: 'Select a coop' });
     }
-    // Coops are a fixed list; new ones are added through /api/options/coops
-    const name = await listedCoop(req.body.name);
+    // Each farm has a fixed list of coops; new ones are added through /api/options/coops
+    const name = await listedCoop(req.body.name, batch.shiftToFarm);
     if (!name) return res.status(400).json({ message: 'Select a coop from the list' });
     if (!Number.isInteger(birds) || birds < 1) {
-      return res.status(400).json({ message: 'Number of birds must be a whole number of at least 1' });
+      return res
+        .status(400)
+        .json({ message: 'Number of birds must be a whole number of at least 1' });
     }
-    if (batch.coops.some((coop) => coop.name.toLowerCase() === name.toLowerCase())) {
+    // Coops on another farm (birds shifted there) may share a name with one here
+    const onOwnFarm = (coop) =>
+      !coop.farm || coop.farm.toLowerCase() === (batch.shiftToFarm ?? '').toLowerCase();
+    if (
+      batch.coops.some((coop) => onOwnFarm(coop) && coop.name.toLowerCase() === name.toLowerCase())
+    ) {
       return res.status(400).json({ message: `Coop "${name}" already exists in this batch` });
     }
 

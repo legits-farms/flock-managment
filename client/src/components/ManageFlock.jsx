@@ -185,7 +185,7 @@ export default function ManageFlock({ batch, coopNames, onOptions, onUpdated, on
               onChange={setName}
               placeholder="Select coop"
               addLabel="Add a coop"
-              onAdd={async (coop) => onOptions(await addCoopName(coop))}
+              onAdd={async (coop) => onOptions(await addCoopName(batch.shiftToFarm, coop))}
             />
           </div>
 
@@ -232,6 +232,7 @@ export default function ManageFlock({ batch, coopNames, onOptions, onUpdated, on
                   <div>
                     <strong>{coop.name}</strong>
                     <small>
+                      {coop.farm && `${coop.farm} · `}
                       {formatNumber(coop.birds)} birds
                       {coop.mortality > 0 &&
                         ` · ${formatNumber(coop.mortality)} mortality · ${formatNumber(coopLive(coop))} live`}

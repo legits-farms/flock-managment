@@ -1,34 +1,12 @@
 import { useState } from 'react';
 import { addFarm } from '../api.js';
-import { batchesOnFarm, formatNumber, liveBirds, totalMortality } from '../flock.js';
+import { farmSummary, formatNumber } from '../flock.js';
+import NameSheet from './NameSheet.jsx';
 
 // The list of farms, what each one currently holds, and a way to add another.
 // Each card opens that farm's page.
 export default function Farms({ farms, batches, onOptions, onOpen }) {
   const [adding, setAdding] = useState(false);
-  const [name, setName] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  function closeSheet() {
-    setAdding(false);
-    setName('');
-    setError('');
-  }
-
-  async function handleAdd(e) {
-    e.preventDefault();
-    setSaving(true);
-    setError('');
-    try {
-      onOptions(await addFarm(name));
-      closeSheet();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  }
 
   return (
     <div className="manage">
@@ -45,12 +23,7 @@ export default function Farms({ farms, batches, onOptions, onOpen }) {
 
       <ul className="batch-list">
         {farms.map((farm) => {
-          const onFarm = batchesOnFarm(batches, farm);
-          const live = onFarm.reduce((sum, batch) => sum + liveBirds(batch), 0);
-          const mortality = onFarm.reduce((sum, batch) => sum + totalMortality(batch), 0);
-          const coops = new Set(
-            onFarm.flatMap((batch) => batch.coops.map((coop) => coop.name.toLowerCase())),
-          );
+          const { present: onFarm, live, mortality, coopCount } = farmSummary(batches, farm);
 
           return (
             <li key={farm}>
@@ -71,7 +44,7 @@ export default function Farms({ farms, batches, onOptions, onOpen }) {
                   </span>
                   <span className="batch-side">
                     <span>
-                      <b>{coops.size}</b> {coops.size === 1 ? 'coop' : 'coops'} in use
+                      <b>{coopCount}</b> {coopCount === 1 ? 'coop' : 'coops'} in use
                     </span>
                     <span>
                       <b>{formatNumber(mortality)}</b> mortality
@@ -99,45 +72,13 @@ export default function Farms({ farms, batches, onOptions, onOpen }) {
       </ul>
 
       {adding && (
-        <div className="sheet-backdrop" onClick={closeSheet}>
-          <form
-            className="sheet form"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Add a farm"
-            onClick={(e) => e.stopPropagation()}
-            onSubmit={handleAdd}
-          >
-            <h2>Add a Farm</h2>
-
-            <label className="field">
-              <span>Farm Name</span>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                maxLength={40}
-                autoFocus
-                required
-              />
-            </label>
-
-            {error && (
-              <p className="error" role="alert">
-                {error}
-              </p>
-            )}
-
-            <div className="option-add-actions">
-              <button type="button" className="secondary" disabled={saving} onClick={closeSheet}>
-                Cancel
-              </button>
-              <button type="submit" className="primary" disabled={saving}>
-                {saving ? 'Adding…' : 'Add Farm'}
-              </button>
-            </div>
-          </form>
-        </div>
+        <NameSheet
+          title="Add a Farm"
+          label="Farm Name"
+          submitLabel="Add Farm"
+          onSubmit={async (name) => onOptions(await addFarm(name))}
+          onClose={() => setAdding(false)}
+        />
       )}
     </div>
   );

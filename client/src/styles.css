@@ -1421,3 +1421,53 @@ button.photo-link {
 .option-add-actions button {
   min-height: 44px;
 }
+
+/* Four dashboard actions: two per row, icon beside the label */
+
+.quick-actions {
+  grid-template-columns: 1fr 1fr;
+}
+
+.quick {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  text-align: left;
+}
+
+.quick-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+}
+
+/* Shift rows show the full reason instead of cutting it off */
+
+.record-meta.wrap {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* A listed coop with no birds in it: shown, but nothing to open */
+
+.batch.empty-coop {
+  padding-top: 14px;
+  padding-bottom: 14px;
+  box-shadow: none;
+  opacity: 0.75;
+}
+
+.batch.empty-coop::before {
+  background: var(--line);
+}
+
+.batch.empty-coop .batch-head {
+  align-items: center;
+}
+
+.batch.empty-coop:active {
+  transform: none;
+  border-color: var(--line);
+}

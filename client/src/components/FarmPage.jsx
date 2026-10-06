@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { addCoopName } from '../api.js';
 import {
   coopGroups,
   coopLive,
+  farmSummary,
   formatNumber,
   liveBirds,
   totalMortality,
@@ -9,6 +11,7 @@ import {
 } from '../flock.js';
 import useBatchRecords from '../useBatchRecords.js';
 import BatchRecords from './BatchRecords.jsx';
+import NameSheet from './NameSheet.jsx';
 
 const VIEWS = [
   { id: 'coops', label: 'Coops' },
@@ -21,17 +24,38 @@ const VIEWS = [
 const formatDate = (value) =>
   new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
-// `batches` is every batch on this farm
-export default function FarmPage({ farm, batches, onBack, onOpenBatch, onOpenCoop }) {
+const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+// `allBatches` is every batch; the page works out what is on this farm.
+// `coopNames` is the farm's listed coops.
+export default function FarmPage({
+  farm,
+  allBatches,
+  coopNames,
+  onOptions,
+  onBack,
+  onOpenBatch,
+  onOpenCoop,
+}) {
   const [view, setView] = useState('coops');
+  const [addingCoop, setAddingCoop] = useState(false);
+  const { home, entries, present: batches, live, mortality } = farmSummary(allBatches, farm);
   const { records, error } = useBatchRecords(batches.map((batch) => batch._id));
 
-  const coops = coopGroups(batches);
-  const live = batches.reduce((sum, batch) => sum + liveBirds(batch), 0);
-  const mortality = batches.reduce((sum, batch) => sum + totalMortality(batch), 0);
+  const inUse = coopGroups(allBatches).filter((group) => sameName(group.farm, farm));
+  // Every listed coop of the farm, in list order, then any in use that are not listed
+  const coops = [
+    ...coopNames.map((name) => ({
+      name,
+      group: inUse.find((group) => sameName(group.name, name)),
+    })),
+    ...inUse
+      .filter((group) => !coopNames.some((name) => sameName(name, group.name)))
+      .map((group) => ({ name: group.name, group })),
+  ];
   // null until the vaccination records have loaded
   const vaccinated = records
-    ? batches.reduce((sum, batch) => sum + vaccinatedBirds(batch, records.vaccinations), 0)
+    ? vaccinatedBirds({ coops: entries.map(({ coop }) => coop) }, records.vaccinations)
     : null;
 
   return (
@@ -88,12 +112,27 @@ export default function FarmPage({ farm, batches, onBack, onOpenBatch, onOpenCoo
 
       {view === 'coops' && (
         <section className="card">
-          <h2 className="eyebrow">Coops ({coops.length})</h2>
+          <div className="section-head">
+            <h2 className="eyebrow">Coops ({coops.length})</h2>
+            <button type="button" className="primary small" onClick={() => setAddingCoop(true)}>
+              ＋ Add Coop
+            </button>
+          </div>
           {coops.length === 0 ? (
-            <p className="empty">No coops in use on this farm yet.</p>
+            <p className="empty">No coops on this farm yet. Add the first one.</p>
           ) : (
             <ul className="recent-list">
-              {coops.map((group) => {
+              {coops.map(({ name, group }) => {
+                if (!group) {
+                  return (
+                    <li key={name}>
+                      <div>
+                        <strong>{name}</strong>
+                        <small>Empty</small>
+                      </div>
+                    </li>
+                  );
+                }
                 const coopBirds = group.entries.reduce((sum, { coop }) => sum + coopLive(coop), 0);
                 return (
                   <li key={group.key}>
@@ -117,6 +156,16 @@ export default function FarmPage({ farm, batches, onBack, onOpenBatch, onOpenCoo
             </ul>
           )}
         </section>
+      )}
+
+      {addingCoop && (
+        <NameSheet
+          title={`Add a Coop to ${farm}`}
+          label="Coop Name"
+          submitLabel="Add Coop"
+          onSubmit={async (name) => onOptions(await addCoopName(farm, name))}
+          onClose={() => setAddingCoop(false)}
+        />
       )}
 
       {view === 'batches' && (
@@ -152,7 +201,13 @@ export default function FarmPage({ farm, batches, onBack, onOpenBatch, onOpenCoo
       )}
 
       {view !== 'coops' && view !== 'batches' && (
-        <BatchRecords view={view} farmBatches={batches} records={records} error={error} />
+        <BatchRecords
+          view={view}
+          farmBatches={home}
+          entries={entries}
+          records={records}
+          error={error}
+        />
       )}
     </div>
   );

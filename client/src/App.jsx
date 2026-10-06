@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getBatches, getMe, getOptions, hasToken, logout } from './api.js';
-import { batchesOnFarm, coopGroups } from './flock.js';
+import { coopGroups, coopsOnFarm } from './flock.js';
 import logo from './assets/logo.webp';
 import AuthScreen from './components/AuthScreen.jsx';
 import BatchForm from './components/BatchForm.jsx';
@@ -12,6 +12,7 @@ import FarmPage from './components/FarmPage.jsx';
 import Farms from './components/Farms.jsx';
 import ManageFlock from './components/ManageFlock.jsx';
 import RecordForm from './components/RecordForm.jsx';
+import ShiftForm from './components/ShiftForm.jsx';
 import Records from './components/Records.jsx';
 
 const TABS = [
@@ -57,15 +58,15 @@ function Flock({ user, onLogout }) {
   // Enter Batch form open over the current tab
   const [entering, setEntering] = useState(false);
   const [managingId, setManagingId] = useState(null);
-  // Dashboard form in progress: 'mortality' | 'vaccination' | null
+  // Dashboard form in progress: 'mortality' | 'vaccination' | 'shift' | null
   const [action, setAction] = useState(null);
   // Key of the coop page being viewed (see coopGroups), or null
   const [coopKey, setCoopKey] = useState(null);
   // Name of the farm page being viewed, or null
   const [farmName, setFarmName] = useState(null);
   const [batches, setBatches] = useState([]);
-  // Fixed farm and coop lists to pick from
-  const [options, setOptions] = useState({ farms: [], coops: [] });
+  // Fixed lists to pick from: farms, and each farm's coops
+  const [options, setOptions] = useState({ farms: [], coops: {} });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -91,7 +92,7 @@ function Flock({ user, onLogout }) {
     getOptions()
       .then(setOptions)
       .catch(() => {});
-  }, [entering, managingId, tab]);
+  }, [entering, managingId, tab, action]);
 
   function handleRegistered(batch) {
     setBatches((prev) => [batch, ...prev]);
@@ -157,7 +158,19 @@ function Flock({ user, onLogout }) {
         )}
         {!entering &&
           tab === 'dashboard' &&
-          (action ? (
+          (action === 'shift' ? (
+            <ShiftForm
+              batches={batches}
+              farms={options.farms}
+              coopsByFarm={options.coops}
+              onSaved={(batch) => {
+                handleUpdated(batch);
+                setAction(null);
+              }}
+              onCancel={() => setAction(null)}
+              onNavigate={goToTab}
+            />
+          ) : action ? (
             <RecordForm
               key={action}
               type={action}
@@ -186,7 +199,7 @@ function Flock({ user, onLogout }) {
             <ManageFlock
               key={managing._id}
               batch={managing}
-              coopNames={options.coops}
+              coopNames={coopsOnFarm(options.coops, managing.shiftToFarm)}
               onOptions={setOptions}
               onUpdated={handleUpdated}
               onBack={() => setManagingId(null)}
@@ -213,6 +226,9 @@ function Flock({ user, onLogout }) {
           ) : (
             <CoopList
               batches={batches}
+              farms={options.farms}
+              coopsByFarm={options.coops}
+              onOptions={setOptions}
               loading={loading}
               error={error}
               onRetry={loadBatches}
@@ -227,7 +243,9 @@ function Flock({ user, onLogout }) {
             <FarmPage
               key={farmName}
               farm={farmName}
-              batches={batchesOnFarm(batches, farmName)}
+              allBatches={batches}
+              coopNames={coopsOnFarm(options.coops, farmName)}
+              onOptions={setOptions}
               onBack={() => setFarmName(null)}
               onOpenBatch={openBatch}
               onOpenCoop={openCoop}
