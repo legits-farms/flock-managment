@@ -1411,17 +1411,6 @@ button.photo-link {
   }
 }
 
-.record-summary {
-  margin: 0;
-  padding: 0 4px;
-  font-size: 0.85rem;
-  color: var(--brown-soft);
-}
-
-.record-summary b {
-  color: var(--brown);
-}
-
 .record-list {
   display: flex;
   flex-direction: column;
@@ -1598,4 +1587,67 @@ button.photo-link {
   font-size: 1.4rem;
   font-weight: 700;
   color: var(--orange);
+}
+
+/* Records: History / Need to be Vaccinated switch under the main tabs */
+
+.segments {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+}
+
+.segments button {
+  flex: 1;
+  min-height: 42px;
+  margin-bottom: -1px;
+  padding: 0 6px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--brown-soft);
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.segments button.active {
+  border-bottom-color: var(--orange);
+  color: var(--orange);
+}
+
+.segments button span {
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 30px;
+  background: var(--orange-soft);
+  color: var(--orange);
+  font-size: 0.72rem;
+}
+
+.batch-stats.record-stats {
+  grid-template-columns: 1fr 1fr;
+  margin: 0;
+  background: #fff;
+}
+
+/* Heading between the days of the record list */
+.record-day {
+  margin: 4px 4px 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brown-soft);
+}
+
+/* The action a tappable card performs, shown where the › would be */
+.card-action {
+  flex-shrink: 0;
+  padding: 7px 16px;
+  border-radius: 30px;
+  background: var(--orange);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
 }

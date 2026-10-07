@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { addCoop, addCoopName } from '../api.js';
 import {
+  coopFarm,
   coopKey,
   coopLive,
   coopsOnFarm,
@@ -263,7 +264,7 @@ export default function ManageFlock({
                   <div>
                     <strong>{coop.name}</strong>
                     <small>
-                      {coop.farm && `${coop.farm} · `}
+                      {coopFarm(batch, coop) && `${coopFarm(batch, coop)} · `}
                       {formatNumber(coop.birds)} birds
                       {coop.mortality > 0 &&
                         ` · ${formatNumber(coop.mortality)} mortality · ${formatNumber(coopLive(coop))} live`}

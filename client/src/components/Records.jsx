@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { getAllMortalities, getAllShifts, getAllVaccinations } from '../api.js';
-import { formatNumber } from '../flock.js';
+import { coopGroups, coopLive, formatNumber, vaccinatedBirds } from '../flock.js';
 import Dropdown from './Dropdown.jsx';
 import RecordDetail from './RecordDetail.jsx';
+import RecordForm from './RecordForm.jsx';
 import ShiftDetail from './ShiftDetail.jsx';
 
 // View ids match the API path and the RecordDetail `kind`
@@ -32,7 +33,26 @@ const EMPTY = {
   shifts: 'No birds shifted yet.',
 };
 
-const SUMMARY = { vaccinations: 'vaccinated', mortalities: 'lost', shifts: 'shifted' };
+const SUMMARY = { vaccinations: 'Vaccinated', mortalities: 'Lost', shifts: 'Shifted' };
+
+// "Today", "Yesterday" or the date, for the headings between days
+function dayLabel(day) {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (day === dayOf(new Date())) return 'Today';
+  if (day === dayOf(yesterday)) return 'Yesterday';
+  return formatDate(`${day}T00:00`);
+}
+
+// Records of one kind split into days, newest day first: [[day, records]]
+function byDay(kind, list) {
+  const days = new Map();
+  for (const record of list) {
+    const day = dayOf(recordDate(kind, record));
+    days.set(day, [...(days.get(day) ?? []), record]);
+  }
+  return [...days].sort(([a], [b]) => b.localeCompare(a));
+}
 
 const unique = (values) => [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
 
@@ -47,10 +67,49 @@ function matches(kind, r, filters) {
   );
 }
 
+// Coops that still hold birds without a vaccine, most birds first:
+// [{ key, name, farm, live, pending, batchNames, vaccinable }], where
+// `vaccinable` is those batches, each with just this coop, for the vaccination form
+function coopsToVaccinate(batches, vaccinations, filters) {
+  return coopGroups(batches)
+    .map((group) => {
+      const entries = group.entries
+        .filter(
+          ({ batch, coop }) =>
+            (!filters.batchId || batch._id === filters.batchId) &&
+            (!filters.coopName || coop.name === filters.coopName),
+        )
+        .map(({ batch, coop }) => ({
+          batch,
+          coop,
+          live: coopLive(coop),
+          pending: coopLive(coop) - vaccinatedBirds({ coops: [coop] }, vaccinations),
+        }))
+        .filter((entry) => entry.pending > 0);
+      return {
+        ...group,
+        live: entries.reduce((sum, entry) => sum + entry.live, 0),
+        pending: entries.reduce((sum, entry) => sum + entry.pending, 0),
+        batchNames: entries.map((entry) => entry.batch.batchName),
+        vaccinable: entries.map((entry) => ({ ...entry.batch, coops: [entry.coop] })),
+      };
+    })
+    .filter((group) => group.pending > 0)
+    .sort((a, b) => b.pending - a.pending);
+}
+
 // Full vaccination, mortality and shift history across every batch, newest first.
-// Tapping a record opens its details.
-export default function Records({ onOpenBatch }) {
+// Tapping a record opens its details. `batches` are the current batches, used to
+// work out which coops still need vaccinating; tapping one of those coops opens
+// the vaccination form for it.
+export default function Records({ batches, onOpenBatch, onUpdated }) {
+  // Key of the coop a vaccination is being added for, or null
+  const [vaccinating, setVaccinating] = useState(null);
+  // Bumped after a vaccination is added, to load the records again
+  const [saves, setSaves] = useState(0);
   const [view, setView] = useState('vaccinations');
+  // The vaccinations view has two halves: what was given, and what is still due
+  const [vaccinationView, setVaccinationView] = useState('history');
   const [records, setRecords] = useState(null);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState(null);
@@ -69,7 +128,7 @@ export default function Records({ onOpenBatch }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [saves]);
 
   if (selected && view === 'shifts') {
     return (
@@ -118,6 +177,28 @@ export default function Records({ onOpenBatch }) {
   const filtered = (kind) => records[kind].filter((r) => matches(kind, r, filters));
   const list = records && filtered(view);
   const totalBirds = list?.reduce((sum, r) => sum + r.birds, 0) ?? 0;
+  // The date and person filters describe records, not coops, so they do not apply here
+  const toVaccinate = records ? coopsToVaccinate(batches, records.vaccinations, filters) : [];
+  const showPending = view === 'vaccinations' && vaccinationView === 'pending';
+  const pendingBirds = toVaccinate.reduce((sum, coop) => sum + coop.pending, 0);
+  const pendingLive = toVaccinate.reduce((sum, coop) => sum + coop.live, 0);
+
+  const vaccinatingCoop = toVaccinate.find((coop) => coop.key === vaccinating);
+  if (vaccinatingCoop) {
+    return (
+      <RecordForm
+        type="vaccination"
+        batches={vaccinatingCoop.vaccinable}
+        backLabel="Need to be Vaccinated"
+        onSaved={(batch) => {
+          onUpdated(batch);
+          setSaves((count) => count + 1);
+          setVaccinating(null);
+        }}
+        onCancel={() => setVaccinating(null)}
+      />
+    );
+  }
 
   return (
     <div className="manage">
@@ -225,6 +306,30 @@ export default function Records({ onOpenBatch }) {
         ))}
       </div>
 
+      {view === 'vaccinations' && (
+        <div className="segments" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!showPending}
+            className={showPending ? '' : 'active'}
+            onClick={() => setVaccinationView('history')}
+          >
+            History
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={showPending}
+            className={showPending ? 'active' : ''}
+            onClick={() => setVaccinationView('pending')}
+          >
+            Need to be Vaccinated
+            {records && toVaccinate.length > 0 && <span>{toVaccinate.length}</span>}
+          </button>
+        </div>
+      )}
+
       {error && (
         <p className="error" role="alert">
           {error}
@@ -232,7 +337,91 @@ export default function Records({ onOpenBatch }) {
       )}
       {!error && !records && <p className="status">Loading…</p>}
 
-      {list && list.length === 0 && (
+      {showPending && records && toVaccinate.length === 0 && (
+        <p className="status">
+          {filters.batchId || filters.coopName
+            ? 'No coops matching these filters need vaccinating.'
+            : 'Every coop is vaccinated.'}
+        </p>
+      )}
+
+      {showPending && toVaccinate.length > 0 && (
+        <>
+          <section className="hero">
+            <p className="hero-label">Birds to Vaccinate</p>
+            <p className="hero-value">{formatNumber(pendingBirds)}</p>
+            <dl className="hero-stats">
+              <div>
+                <dt>Coops</dt>
+                <dd>{formatNumber(toVaccinate.length)}</dd>
+              </div>
+              <div>
+                <dt>Live Birds</dt>
+                <dd>{formatNumber(pendingLive)}</dd>
+              </div>
+              <div>
+                <dt>Vaccinated</dt>
+                <dd>{(((pendingLive - pendingBirds) / pendingLive) * 100).toFixed(0)}%</dd>
+              </div>
+            </dl>
+          </section>
+
+          <ul className="batch-list">
+            {toVaccinate.map((coop) => {
+              const covered = ((coop.live - coop.pending) / coop.live) * 100;
+              return (
+                <li key={coop.key}>
+                  <button
+                    type="button"
+                    className="card batch"
+                    onClick={() => setVaccinating(coop.key)}
+                  >
+                    <span className="batch-head">
+                      <span className="batch-title">
+                        <strong>{coop.name}</strong>
+                      </span>
+                      {coop.farm && <span className="badge">{coop.farm}</span>}
+                    </span>
+
+                    <span className="batch-figures">
+                      <span className="batch-live">
+                        <b>{formatNumber(coop.pending)}</b>
+                        to vaccinate
+                      </span>
+                      <span className="batch-side">
+                        <span>
+                          <b>{formatNumber(coop.live)}</b> live birds
+                        </span>
+                        <span>
+                          <b>{formatNumber(coop.live - coop.pending)}</b> vaccinated
+                        </span>
+                      </span>
+                    </span>
+
+                    <span className="bar">
+                      <span style={{ width: `${covered}%` }} />
+                    </span>
+                    <span className="batch-livability">{covered.toFixed(0)}% vaccinated</span>
+
+                    <span className="batch-foot">
+                      <span className="chips">
+                        {coop.batchNames.map((name) => (
+                          <span key={name} className="chip">
+                            {name}
+                          </span>
+                        ))}
+                      </span>
+                      <span className="card-action">＋ Add</span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+
+      {!showPending && list && list.length === 0 && (
         <div className="status">
           <p>{activeFilters > 0 ? 'No records match these filters.' : EMPTY[view]}</p>
           {activeFilters > 0 && (
@@ -243,75 +432,71 @@ export default function Records({ onOpenBatch }) {
         </div>
       )}
 
-      {list && list.length > 0 && (
+      {!showPending && list && list.length > 0 && (
         <>
-          <p className="record-summary">
-            <b>{formatNumber(list.length)}</b> {list.length === 1 ? 'record' : 'records'} ·{' '}
-            <b>{formatNumber(totalBirds)}</b> birds {SUMMARY[view]}
-          </p>
+          <dl className="batch-stats record-stats">
+            <div>
+              <dt>Records</dt>
+              <dd>{formatNumber(list.length)}</dd>
+            </div>
+            <div>
+              <dt>Birds {SUMMARY[view]}</dt>
+              <dd>{formatNumber(totalBirds)}</dd>
+            </div>
+          </dl>
 
           <ul className="record-list">
-            {view === 'shifts' &&
-              list.map((s) => (
-                <li key={s._id}>
-                  <button type="button" className="card record" onClick={() => setSelected(s)}>
-                    <span className="record-icon" aria-hidden="true">
-                      ⇄
-                    </span>
+            {byDay(view, list).map(([day, dayRecords]) => (
+              <li key={day}>
+                <h3 className="record-day">{dayLabel(day)}</h3>
+                <ul className="record-list">
+                  {dayRecords.map((r) => (
+                    <li key={r._id}>
+                      <button type="button" className="card record" onClick={() => setSelected(r)}>
+                        <span className={`record-icon ${view}`} aria-hidden="true">
+                          {view === 'shifts' ? '⇄' : view === 'vaccinations' ? '+' : '−'}
+                        </span>
 
-                    <span className="record-body">
-                      <span className="record-top">
-                        <strong>{formatNumber(s.birds)} birds</strong>
-                        <small>{formatDate(s.date)}</small>
-                      </span>
-                      <span className="record-place">
-                        {s.fromFarm && `${s.fromFarm} · `}
-                        {s.fromCoopName} → {s.toFarm && `${s.toFarm} · `}
-                        {s.toCoopName}
-                      </span>
-                      <span className="record-meta">
-                        {s.batch?.batchName ?? 'Deleted batch'} · {s.reason}
-                        {s.createdBy?.name && ` · By ${s.createdBy.name}`}
-                      </span>
-                    </span>
+                        <span className="record-body">
+                          <span className="record-top">
+                            <strong>
+                              {view === 'vaccinations' ? r.vaccine : `${formatNumber(r.birds)} birds`}
+                            </strong>
+                            {view === 'vaccinations' && (
+                              <small>{formatNumber(r.birds)} birds</small>
+                            )}
+                          </span>
+                          <span className="record-place">
+                            {view === 'shifts' ? (
+                              <>
+                                {r.fromFarm && `${r.fromFarm} · `}
+                                {r.fromCoopName} → {r.toFarm && `${r.toFarm} · `}
+                                {r.toCoopName}
+                              </>
+                            ) : (
+                              `${r.batch?.batchName ?? 'Deleted batch'} · ${r.coopName}`
+                            )}
+                          </span>
+                          <span className="record-meta">
+                            {[
+                              view === 'shifts' && (r.batch?.batchName ?? 'Deleted batch'),
+                              view !== 'vaccinations' && r.reason,
+                              r.createdBy?.name && `By ${r.createdBy.name}`,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </span>
+                        </span>
 
-                    <span className="alert-go" aria-hidden="true">
-                      ›
-                    </span>
-                  </button>
-                </li>
-              ))}
-
-            {view !== 'shifts' &&
-              list.map((r) => (
-                <li key={r._id}>
-                  <button type="button" className="card record" onClick={() => setSelected(r)}>
-                    <span className={`record-icon ${view}`} aria-hidden="true">
-                      {view === 'vaccinations' ? '+' : '−'}
-                    </span>
-
-                    <span className="record-body">
-                      <span className="record-top">
-                        <strong>
-                          {view === 'vaccinations' ? r.vaccine : `${formatNumber(r.birds)} birds`}
-                        </strong>
-                        <small>{formatDate(recordDate(view, r))}</small>
-                      </span>
-                      <span className="record-place">
-                        {r.batch?.batchName ?? 'Deleted batch'} · {r.coopName}
-                      </span>
-                      <span className="record-meta">
-                        {view === 'vaccinations' ? `${formatNumber(r.birds)} birds` : r.reason}
-                        {r.createdBy?.name && ` · By ${r.createdBy.name}`}
-                      </span>
-                    </span>
-
-                    <span className="alert-go" aria-hidden="true">
-                      ›
-                    </span>
-                  </button>
-                </li>
-              ))}
+                        <span className="alert-go" aria-hidden="true">
+                          ›
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
           </ul>
         </>
       )}

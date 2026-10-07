@@ -20,11 +20,23 @@ const FORMS = {
   },
 };
 
-// Dashboard form for a mortality or vaccination record against one coop
-export default function RecordForm({ type, batches, onSaved, onCancel, onNavigate }) {
+// Form for a mortality or vaccination record against one coop. Opened from the
+// dashboard, or from a coop page with only that coop's batches to choose from.
+export default function RecordForm({
+  type,
+  batches,
+  onSaved,
+  onCancel,
+  onNavigate,
+  backLabel = 'Dashboard',
+}) {
   const config = FORMS[type];
-  const [batchId, setBatchId] = useState('');
-  const [coopId, setCoopId] = useState('');
+  // With a single choice there is nothing to pick
+  const onlyBatch = batches.length === 1 ? batches[0] : null;
+  const [batchId, setBatchId] = useState(onlyBatch?._id ?? '');
+  const [coopId, setCoopId] = useState(
+    onlyBatch?.coops.length === 1 ? onlyBatch.coops[0]._id : '',
+  );
   const [birds, setBirds] = useState('');
   const [reason, setReason] = useState('');
   const [date, setDate] = useState(today);
@@ -50,8 +62,9 @@ export default function RecordForm({ type, batches, onSaved, onCancel, onNavigat
   }));
 
   function chooseBatch(id) {
+    const coops = batches.find((b) => b._id === id)?.coops ?? [];
     setBatchId(id);
-    setCoopId('');
+    setCoopId(coops.length === 1 ? coops[0]._id : '');
   }
 
   async function handleSubmit(e) {
@@ -96,7 +109,7 @@ export default function RecordForm({ type, batches, onSaved, onCancel, onNavigat
   return (
     <div className="manage">
       <button type="button" className="link back" onClick={onCancel}>
-        ‹ Dashboard
+        ‹ {backLabel}
       </button>
 
       <form className="card form" onSubmit={handleSubmit}>

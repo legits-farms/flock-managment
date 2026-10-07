@@ -4,7 +4,8 @@ import { getMortalities, getShifts, getVaccinations } from './api.js';
 // Loads the mortality and vaccination records of one batch, or of several
 // when given an array of batch ids.
 // `records` is { mortalities, vaccinations, shifts }, or null while loading.
-export default function useBatchRecords(batchIds) {
+// Changing `reloadKey` fetches them again, e.g. after a record was added.
+export default function useBatchRecords(batchIds, reloadKey = 0) {
   const key = [].concat(batchIds).join(',');
   const [records, setRecords] = useState(null);
   const [error, setError] = useState('');
@@ -37,7 +38,7 @@ export default function useBatchRecords(batchIds) {
     return () => {
       cancelled = true;
     };
-  }, [key]);
+  }, [key, reloadKey]);
 
   return { records, error };
 }

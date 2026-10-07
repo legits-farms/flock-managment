@@ -224,6 +224,7 @@ function Flock({ user, onLogout }) {
               group={viewingCoop}
               onBack={() => setCoopKey(null)}
               onOpenBatch={openBatch}
+              onUpdated={handleUpdated}
             />
           ) : (
             <CoopList
@@ -238,7 +239,9 @@ function Flock({ user, onLogout }) {
               onNavigate={goToTab}
             />
           ))}
-        {!entering && tab === 'records' && <Records onOpenBatch={openBatch} />}
+        {!entering && tab === 'records' && (
+          <Records batches={batches} onOpenBatch={openBatch} onUpdated={handleUpdated} />
+        )}
         {!entering &&
           tab === 'farms' &&
           (farmName ? (

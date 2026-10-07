@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { coopLive, formatNumber, vaccinatedBirds } from '../flock.js';
 import useBatchRecords from '../useBatchRecords.js';
 import BatchRecords from './BatchRecords.jsx';
+import RecordForm from './RecordForm.jsx';
 
 const VIEWS = [
   { id: 'batches', label: 'Batches' },
@@ -14,16 +15,43 @@ const formatDate = (value) =>
   new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
 // `group` is one coop from coopGroups(): every batch that has been in it
-export default function CoopPage({ group, onBack, onOpenBatch }) {
+export default function CoopPage({ group, onBack, onOpenBatch, onUpdated }) {
   const [view, setView] = useState('batches');
+  const [adding, setAdding] = useState(false);
+  // Bumped after a vaccination is added, to load the records again
+  const [saves, setSaves] = useState(0);
   const { entries } = group;
-  const { records, error } = useBatchRecords(entries.map(({ batch }) => batch._id));
+  const { records, error } = useBatchRecords(
+    entries.map(({ batch }) => batch._id),
+    saves,
+  );
 
   const coops = entries.map(({ coop }) => coop);
   const live = coops.reduce((sum, coop) => sum + coopLive(coop), 0);
   const mortality = coops.reduce((sum, coop) => sum + (coop.mortality ?? 0), 0);
   // null until the vaccination records have loaded
   const vaccinated = records ? vaccinatedBirds({ coops }, records.vaccinations) : null;
+
+  // Only birds still alive in this coop can be vaccinated
+  const vaccinable = entries
+    .filter(({ coop }) => coopLive(coop) > 0)
+    .map(({ batch, coop }) => ({ ...batch, coops: [coop] }));
+
+  if (adding) {
+    return (
+      <RecordForm
+        type="vaccination"
+        batches={vaccinable}
+        backLabel={group.name}
+        onSaved={(batch) => {
+          onUpdated(batch);
+          setSaves((count) => count + 1);
+          setAdding(false);
+        }}
+        onCancel={() => setAdding(false)}
+      />
+    );
+  }
 
   return (
     <div className="manage">
@@ -74,6 +102,13 @@ export default function CoopPage({ group, onBack, onOpenBatch }) {
           </button>
         ))}
       </div>
+
+      {/* Nothing to add once every live bird is vaccinated */}
+      {view === 'vaccinations' && vaccinated !== null && live > vaccinated && (
+        <button type="button" className="primary" onClick={() => setAdding(true)}>
+          ＋ Add Vaccination
+        </button>
+      )}
 
       {view === 'batches' ? (
         <section className="card">
