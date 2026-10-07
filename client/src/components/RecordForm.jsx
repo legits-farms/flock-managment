@@ -1,11 +1,23 @@
 import { useState } from 'react';
 import { createMortality, createVaccination } from '../api.js';
-import { coopLive, formatNumber } from '../flock.js';
+import { coopFarm, coopLive, formatNumber } from '../flock.js';
 import Dropdown from './Dropdown.jsx';
 import PhotoCapture from './PhotoCapture.jsx';
 
 // YYYY-MM-DD in local time, the format <input type="date"> expects
 const today = () => new Date().toLocaleDateString('en-CA');
+
+const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+// The coops of a batch that are on the given farm. A batch can be spread over
+// several farms, so the farm is chosen first and narrows the batches and coops.
+const coopsOn = (batch, farm) =>
+  farm === null ? [] : batch.coops.filter((coop) => sameName(coopFarm(batch, coop), farm));
+
+const batchesOn = (batches, farm) => batches.filter((batch) => coopsOn(batch, farm).length > 0);
+
+// With a single choice there is nothing to pick
+const only = (list) => (list.length === 1 ? list[0] : null);
 
 const FORMS = {
   mortality: {
@@ -31,11 +43,19 @@ export default function RecordForm({
   backLabel = 'Dashboard',
 }) {
   const config = FORMS[type];
-  // With a single choice there is nothing to pick
-  const onlyBatch = batches.length === 1 ? batches[0] : null;
+  // Every farm that has a coop to record against
+  const farms = [
+    ...new Map(
+      batches.flatMap((b) => b.coops.map((c) => coopFarm(b, c))).map((f) => [f.toLowerCase(), f]),
+    ).values(),
+  ];
+
+  const onlyFarm = only(farms);
+  const onlyBatch = only(batchesOn(batches, onlyFarm));
+  const [farm, setFarm] = useState(onlyFarm);
   const [batchId, setBatchId] = useState(onlyBatch?._id ?? '');
   const [coopId, setCoopId] = useState(
-    onlyBatch?.coops.length === 1 ? onlyBatch.coops[0]._id : '',
+    (onlyBatch && only(coopsOn(onlyBatch, onlyFarm))?._id) ?? '',
   );
   const [birds, setBirds] = useState('');
   const [reason, setReason] = useState('');
@@ -46,30 +66,25 @@ export default function RecordForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Only batches that already have coops can take a record
-  const batchOptions = batches
-    .filter((b) => b.coops.length > 0)
-    .map((b) => ({
-      value: b._id,
-      label: b.shiftToFarm ? `${b.shiftToFarm} · ${b.batchName}` : b.batchName,
-    }));
+  const farmBatches = batchesOn(batches, farm);
+  const batch = farmBatches.find((b) => b._id === batchId);
+  const batchCoops = batch ? coopsOn(batch, farm) : [];
+  const coop = batchCoops.find((c) => c._id === coopId);
 
-  const batch = batches.find((b) => b._id === batchId);
-  const coop = batch?.coops.find((c) => c._id === coopId);
-  const coopOptions = (batch?.coops ?? []).map((c) => ({
-    value: c._id,
-    label: `${c.name}${c.farm ? ` · ${c.farm}` : ''} (${formatNumber(coopLive(c))} live)`,
-  }));
-
-  function chooseBatch(id) {
-    const coops = batches.find((b) => b._id === id)?.coops ?? [];
+  function chooseBatch(id, onFarm = farm) {
+    const chosen = batches.find((b) => b._id === id);
     setBatchId(id);
-    setCoopId(coops.length === 1 ? coops[0]._id : '');
+    setCoopId((chosen && only(coopsOn(chosen, onFarm))?._id) ?? '');
+  }
+
+  function chooseFarm(next) {
+    setFarm(next);
+    chooseBatch(only(batchesOn(batches, next))?._id ?? '', next);
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!batch) return setError('Please select a farm & batch.');
+    if (!batch) return setError('Please select a farm and a batch.');
     if (!coop) return setError('Please select a coop.');
     if (Number(birds) > coopLive(coop)) {
       return setError(`Only ${formatNumber(coopLive(coop))} live birds are in ${coop.name}.`);
@@ -95,7 +110,7 @@ export default function RecordForm({
     }
   }
 
-  if (batchOptions.length === 0) {
+  if (farms.length === 0) {
     return (
       <div className="status">
         <p>No coops yet. Allocate a batch to coops before adding records.</p>
@@ -116,13 +131,24 @@ export default function RecordForm({
         <h2>{config.title}</h2>
 
         <div className="field">
-          <label htmlFor="record-batch">Farm &amp; Batch</label>
+          <label htmlFor="record-farm">Farm</label>
+          <Dropdown
+            id="record-farm"
+            value={farm}
+            options={farms.map((name) => ({ value: name, label: name || 'No farm' }))}
+            onChange={chooseFarm}
+            placeholder="Select farm"
+          />
+        </div>
+
+        <div className="field">
+          <label htmlFor="record-batch">Batch</label>
           <Dropdown
             id="record-batch"
             value={batchId}
-            options={batchOptions}
+            options={farmBatches.map((b) => ({ value: b._id, label: b.batchName }))}
             onChange={chooseBatch}
-            placeholder="Select farm & batch"
+            placeholder={farm === null ? 'Select farm first' : 'Select batch'}
           />
         </div>
 
@@ -131,9 +157,12 @@ export default function RecordForm({
           <Dropdown
             id="record-coop"
             value={coopId}
-            options={coopOptions}
+            options={batchCoops.map((c) => ({
+              value: c._id,
+              label: `${c.name} (${formatNumber(coopLive(c))} live)`,
+            }))}
             onChange={setCoopId}
-            placeholder={batch ? 'Select coop' : 'Select farm & batch first'}
+            placeholder={batch ? 'Select coop' : 'Select batch first'}
           />
         </div>
 
