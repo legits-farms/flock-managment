@@ -15,7 +15,7 @@ const coopSchema = new mongoose.Schema({
     min: [0, 'Number of birds cannot be negative'],
     validate: wholeNumber,
   },
-  // Only set when the coop is on another farm than the batch's own (birds shifted there)
+  // Only set when the coop is on another farm than the batch's own
   farm: { type: String, trim: true },
   // Created by a shift rather than by allocating the batch's birds
   fromShift: { type: Boolean, default: false },

@@ -63,21 +63,25 @@ router.post('/:id/coops', async (req, res, next) => {
     if (!String(req.body.name ?? '').trim()) {
       return res.status(400).json({ message: 'Select a coop' });
     }
+    // A batch can be spread over several farms; without one the coop is on the batch's own
+    const farm = await listedFarm(req.body.farm || batch.shiftToFarm);
+    if (!farm) return res.status(400).json({ message: 'Select a farm' });
     // Each farm has a fixed list of coops; new ones are added through /api/options/coops
-    const name = await listedCoop(req.body.name, batch.shiftToFarm);
+    const name = await listedCoop(req.body.name, farm);
     if (!name) return res.status(400).json({ message: 'Select a coop from the list' });
     if (!Number.isInteger(birds) || birds < 1) {
       return res
         .status(400)
         .json({ message: 'Number of birds must be a whole number of at least 1' });
     }
-    // Coops on another farm (birds shifted there) may share a name with one here
-    const onOwnFarm = (coop) =>
-      !coop.farm || coop.farm.toLowerCase() === (batch.shiftToFarm ?? '').toLowerCase();
-    if (
-      batch.coops.some((coop) => onOwnFarm(coop) && coop.name.toLowerCase() === name.toLowerCase())
-    ) {
-      return res.status(400).json({ message: `Coop "${name}" already exists in this batch` });
+    // Coops on different farms may share a name
+    const same = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+    const farmOf = (coop) => coop.farm || batch.shiftToFarm || '';
+    const onOwnFarm = same(farm, batch.shiftToFarm ?? '');
+    if (batch.coops.some((coop) => same(farmOf(coop), farm) && same(coop.name, name))) {
+      return res.status(400).json({
+        message: `Coop "${name}"${onOwnFarm ? '' : ` on ${farm}`} already exists in this batch`,
+      });
     }
 
     const allocated = batch.coops.reduce((sum, coop) => sum + coop.birds, 0);
@@ -88,7 +92,7 @@ router.post('/:id/coops', async (req, res, next) => {
         .json({ message: `Only ${unallocated} birds are left to allocate in this batch` });
     }
 
-    batch.coops.push({ name, birds, addedBy: actor(req) });
+    batch.coops.push({ name, birds, ...(!onOwnFarm && { farm }), addedBy: actor(req) });
     await batch.save();
     res.status(201).json(batch);
   } catch (err) {

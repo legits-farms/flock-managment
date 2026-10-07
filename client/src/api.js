@@ -57,9 +57,6 @@ export const addCoopName = (farm, name) =>
 export const addCoop = (batchId, coop) =>
   request(`/batches/${batchId}/coops`, { method: 'POST', body: JSON.stringify(coop) });
 
-export const removeCoop = (batchId, coopId) =>
-  request(`/batches/${batchId}/coops/${coopId}`, { method: 'DELETE' });
-
 // Record calls resolve to { id, batch } with the updated batch
 export const createMortality = (record) =>
   request('/mortalities', { method: 'POST', body: JSON.stringify(record) });

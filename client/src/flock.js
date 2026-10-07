@@ -41,12 +41,15 @@ export const coopFarm = (batch, coop) => (coop.farm || batch.shiftToFarm || '').
 // Coops are stored per batch. The same physical coop holds several batches over
 // time, so entries with the same name on the same farm are grouped into one coop:
 // { key, name, farm, entries: [{ batch, coop }] }, entries newest batch first.
+export const coopKey = (batch, coop) =>
+  `${coopFarm(batch, coop).toLowerCase()}|${coop.name.trim().toLowerCase()}`;
+
 export function coopGroups(batches) {
   const groups = new Map();
   for (const batch of batches) {
     for (const coop of batch.coops ?? []) {
       const farm = coopFarm(batch, coop);
-      const key = `${farm.toLowerCase()}|${coop.name.trim().toLowerCase()}`;
+      const key = coopKey(batch, coop);
       if (!groups.has(key)) groups.set(key, { key, name: coop.name, farm, entries: [] });
       groups.get(key).entries.push({ batch, coop });
     }

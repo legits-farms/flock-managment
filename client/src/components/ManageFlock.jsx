@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { addCoop, addCoopName, removeCoop } from '../api.js';
+import { addCoop, addCoopName } from '../api.js';
 import {
+  coopKey,
   coopLive,
+  coopsOnFarm,
   formatNumber,
   liveBirds,
   totalMortality,
@@ -10,6 +12,7 @@ import {
 } from '../flock.js';
 import useBatchRecords from '../useBatchRecords.js';
 import BatchRecords from './BatchRecords.jsx';
+import Dropdown from './Dropdown.jsx';
 import OptionSelect from './OptionSelect.jsx';
 
 const formatDate = (value) =>
@@ -22,7 +25,17 @@ const VIEWS = [
   { id: 'activity', label: 'Activity Logs' },
 ];
 
-export default function ManageFlock({ batch, coopNames, onOptions, onUpdated, onBack }) {
+export default function ManageFlock({
+  batch,
+  farms,
+  coopsByFarm,
+  onOptions,
+  onUpdated,
+  onBack,
+  onOpenCoop,
+}) {
+  // A batch can be spread over several farms; its own is offered first
+  const [farm, setFarm] = useState(batch.shiftToFarm ?? '');
   const [name, setName] = useState('');
   const [birds, setBirds] = useState('');
   const [busy, setBusy] = useState(false);
@@ -32,8 +45,15 @@ export default function ManageFlock({ batch, coopNames, onOptions, onUpdated, on
 
   const unallocated = unallocatedBirds(batch);
   // A coop can only be used once per batch
-  const used = new Set(batch.coops.map((coop) => coop.name.toLowerCase()));
-  const freeCoops = coopNames.filter((coop) => !used.has(coop.toLowerCase()));
+  const used = new Set(batch.coops.map((coop) => coopKey(batch, coop)));
+  const freeCoops = coopsOnFarm(coopsByFarm, farm).filter(
+    (coop) => !used.has(coopKey({ shiftToFarm: farm }, { name: coop }))
+  );
+
+  function chooseFarm(next) {
+    setFarm(next);
+    setName('');
+  }
   const live = liveBirds(batch);
   // null until the batch's vaccination records have loaded
   const vaccinated = records ? vaccinatedBirds(batch, records.vaccinations) : null;
@@ -54,8 +74,8 @@ export default function ManageFlock({ batch, coopNames, onOptions, onUpdated, on
 
   async function handleAdd(e) {
     e.preventDefault();
-    if (!name) {
-      setError('Please select a coop.');
+    if (!farm || !name) {
+      setError('Please select a farm and a coop.');
       return;
     }
     const count = Number(birds);
@@ -63,7 +83,7 @@ export default function ManageFlock({ batch, coopNames, onOptions, onUpdated, on
       setError(`Only ${formatNumber(unallocated)} birds are left to allocate.`);
       return;
     }
-    if (await run(() => addCoop(batch._id, { name, birds: count }))) {
+    if (await run(() => addCoop(batch._id, { farm, name, birds: count }))) {
       setName('');
       setBirds('');
     }
@@ -82,8 +102,12 @@ export default function ManageFlock({ batch, coopNames, onOptions, onUpdated, on
           <span className="badge">{batch.breed}</span>
         </div>
 
-        <dl className="batch-stats four">
-          <div>
+        <dl className="batch-stats five">
+          <div className="lead">
+            <dt>Birds Received</dt>
+            <dd>{formatNumber(batch.numberOfBirds)}</dd>
+          </div>
+          <div className="lead">
             <dt>Live Birds</dt>
             <dd>{formatNumber(live)}</dd>
           </div>
@@ -119,10 +143,6 @@ export default function ManageFlock({ batch, coopNames, onOptions, onUpdated, on
               <dd>
                 {batch.age} {batch.ageUnit}
               </dd>
-            </div>
-            <div>
-              <dt>Birds Received</dt>
-              <dd>{formatNumber(batch.numberOfBirds)}</dd>
             </div>
             <div>
               <dt>Vendor</dt>
@@ -177,15 +197,26 @@ export default function ManageFlock({ batch, coopNames, onOptions, onUpdated, on
           <h2>Add a Coop</h2>
 
           <div className="field">
+            <label htmlFor="coop-farm">Farm</label>
+            <Dropdown
+              id="coop-farm"
+              value={farm}
+              options={farms.map((option) => ({ value: option, label: option }))}
+              onChange={chooseFarm}
+              placeholder="Select farm"
+            />
+          </div>
+
+          <div className="field">
             <label htmlFor="coop">Coop</label>
             <OptionSelect
               id="coop"
               value={name}
               names={freeCoops}
               onChange={setName}
-              placeholder="Select coop"
+              placeholder={farm ? 'Select coop' : 'Select farm first'}
               addLabel="Add a coop"
-              onAdd={async (coop) => onOptions(await addCoopName(batch.shiftToFarm, coop))}
+              onAdd={async (coop) => onOptions(await addCoopName(farm, coop))}
             />
           </div>
 
@@ -240,11 +271,10 @@ export default function ManageFlock({ batch, coopNames, onOptions, onUpdated, on
                   </div>
                   <button
                     type="button"
-                    className="remove"
-                    disabled={busy}
-                    onClick={() => run(() => removeCoop(batch._id, coop._id))}
+                    className="photo-link"
+                    onClick={() => onOpenCoop(coopKey(batch, coop))}
                   >
-                    Remove
+                    Open
                   </button>
                 </li>
               ))}

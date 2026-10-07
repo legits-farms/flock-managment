@@ -78,58 +78,47 @@ export default function CoopList({
 
       <ul className="batch-list">
         {coops.map(({ name, group }) => {
-          if (!group) {
-            return (
-              <li key={name} className="card batch empty-coop">
-                <span className="batch-head">
-                  <span className="batch-title">
-                    <strong>{name}</strong>
-                  </span>
-                  <span className="chip">Empty</span>
-                </span>
-              </li>
-            );
-          }
-
-          const entered = group.entries.reduce((sum, { coop }) => sum + coop.birds, 0);
-          const live = group.entries.reduce((sum, { coop }) => sum + coopLive(coop), 0);
+          // A coop no batch has been in shows the same card, all zeros
+          const entries = group?.entries ?? [];
+          const entered = entries.reduce((sum, { coop }) => sum + coop.birds, 0);
+          const live = entries.reduce((sum, { coop }) => sum + coopLive(coop), 0);
           const livability = entered > 0 ? (live / entered) * 100 : 0;
 
-          return (
-            <li key={group.key}>
-              <button type="button" className="card batch" onClick={() => onOpen(group.key)}>
-                <span className="batch-head">
-                  <span className="batch-title">
-                    <strong>{group.name}</strong>
+          const card = (
+            <>
+              <span className="batch-head">
+                <span className="batch-title">
+                  <strong>{name}</strong>
+                </span>
+                <span className="badge">
+                  {entries.length} {entries.length === 1 ? 'batch' : 'batches'}
+                </span>
+              </span>
+
+              <span className="batch-figures">
+                <span className="batch-live">
+                  <b>{formatNumber(live)}</b>
+                  live birds
+                </span>
+                <span className="batch-side">
+                  <span>
+                    <b>{formatNumber(entered)}</b> in coop
                   </span>
-                  <span className="badge">
-                    {group.entries.length} {group.entries.length === 1 ? 'batch' : 'batches'}
+                  <span>
+                    <b>{formatNumber(entered - live)}</b> mortality
                   </span>
                 </span>
+              </span>
 
-                <span className="batch-figures">
-                  <span className="batch-live">
-                    <b>{formatNumber(live)}</b>
-                    live birds
-                  </span>
-                  <span className="batch-side">
-                    <span>
-                      <b>{formatNumber(entered)}</b> in coop
-                    </span>
-                    <span>
-                      <b>{formatNumber(entered - live)}</b> mortality
-                    </span>
-                  </span>
-                </span>
+              <span className="bar">
+                <span style={{ width: `${livability}%` }} />
+              </span>
+              <span className="batch-livability">{livability.toFixed(1)}% livability</span>
 
-                <span className="bar">
-                  <span style={{ width: `${livability}%` }} />
-                </span>
-                <span className="batch-livability">{livability.toFixed(1)}% livability</span>
-
+              {group && (
                 <span className="batch-foot">
                   <span className="chips">
-                    {group.entries.map(({ batch }) => (
+                    {entries.map(({ batch }) => (
                       <span key={batch._id} className="chip">
                         {batch.batchName} · {batch.breed}
                       </span>
@@ -139,7 +128,20 @@ export default function CoopList({
                     ›
                   </span>
                 </span>
-              </button>
+              )}
+            </>
+          );
+
+          return (
+            <li key={group?.key ?? name}>
+              {group ? (
+                <button type="button" className="card batch" onClick={() => onOpen(group.key)}>
+                  {card}
+                </button>
+              ) : (
+                // Nothing to open until a batch is allocated here
+                <div className="card batch static">{card}</div>
+              )}
             </li>
           );
         })}

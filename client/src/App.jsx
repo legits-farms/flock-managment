@@ -199,10 +199,12 @@ function Flock({ user, onLogout }) {
             <ManageFlock
               key={managing._id}
               batch={managing}
-              coopNames={coopsOnFarm(options.coops, managing.shiftToFarm)}
+              farms={options.farms}
+              coopsByFarm={options.coops}
               onOptions={setOptions}
               onUpdated={handleUpdated}
               onBack={() => setManagingId(null)}
+              onOpenCoop={openCoop}
             />
           ) : (
             <BatchList

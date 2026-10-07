@@ -585,6 +585,103 @@ dt {
   background: linear-gradient(90deg, var(--orange), #f7a32b);
 }
 
+/* Dashboard chart: one column per day over a shared baseline */
+
+.chart-figure {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: var(--brown-soft);
+}
+
+.chart-figure strong {
+  font-size: 1.6rem;
+  line-height: 1.2;
+  color: var(--brown);
+}
+
+.chart {
+  margin-top: 16px;
+  padding-left: 30px;
+}
+
+.chart-plot {
+  position: relative;
+  height: 132px;
+}
+
+.chart-grid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--line);
+}
+
+.chart-grid span {
+  position: absolute;
+  right: 100%;
+  top: 0;
+  padding-right: 8px;
+  transform: translateY(-50%);
+  font-size: 0.65rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--brown-soft);
+}
+
+.chart-cols {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+
+.chart-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 1px;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.chart-col:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+
+.chart-bar {
+  width: 100%;
+  max-width: 24px;
+  border-radius: 4px 4px 0 0;
+  background: var(--orange);
+  transition: opacity 0.15s;
+}
+
+/* The chosen day stands out by the others stepping back */
+.chart-cols:has(.active) .chart-col:not(.active) .chart-bar {
+  opacity: 0.4;
+}
+
+.chart-x {
+  display: flex;
+  margin-top: 6px;
+}
+
+.chart-x span {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+  font-size: 0.65rem;
+  white-space: nowrap;
+  color: var(--brown-soft);
+}
+
 .section-head {
   display: flex;
   align-items: center;
@@ -686,22 +783,6 @@ dt {
   margin: 12px 0 0;
   font-size: 0.9rem;
   color: var(--brown-soft);
-}
-
-.remove {
-  flex-shrink: 0;
-  min-height: 36px;
-  padding: 0 14px;
-  border: 1px solid var(--line);
-  border-radius: 30px;
-  background: #fff;
-  color: var(--red);
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.remove:disabled {
-  opacity: 0.5;
 }
 
 /* Dashboard actions and record forms */
@@ -809,6 +890,30 @@ dt {
 .batch-stats.four {
   grid-template-columns: 1fr 1fr;
   row-gap: 12px;
+}
+
+/* Five stats: two headline figures over a row of three */
+.batch-stats.five {
+  grid-template-columns: repeat(6, 1fr);
+  align-items: end;
+  row-gap: 0;
+  padding: 14px 8px 12px;
+}
+
+.batch-stats.five > div {
+  grid-column: span 2;
+}
+
+.batch-stats.five > .lead {
+  grid-column: span 3;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.batch-stats.five > .lead dd {
+  font-size: 1.5rem;
+  line-height: 1.2;
 }
 
 .manage .notice {
@@ -1445,22 +1550,7 @@ button.photo-link {
 
 /* A listed coop with no birds in it: shown, but nothing to open */
 
-.batch.empty-coop {
-  padding-top: 14px;
-  padding-bottom: 14px;
-  box-shadow: none;
-  opacity: 0.75;
-}
-
-.batch.empty-coop::before {
-  background: var(--line);
-}
-
-.batch.empty-coop .batch-head {
-  align-items: center;
-}
-
-.batch.empty-coop:active {
+.batch.static:active {
   transform: none;
   border-color: var(--line);
 }

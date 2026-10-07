@@ -1,5 +1,6 @@
 import { formatNumber, liveBirds, totalMortality, unallocatedBirds } from '../flock.js';
 import LoadStatus from './LoadStatus.jsx';
+import MortalityChart from './MortalityChart.jsx';
 import RecentRecords from './RecentRecords.jsx';
 
 const formatDate = (value) =>
@@ -145,6 +146,8 @@ export default function Dashboard({
           </span>
         </button>
       )}
+
+      <MortalityChart />
 
       <section className="card">
         <h2 className="eyebrow">Live Birds by Breed</h2>
