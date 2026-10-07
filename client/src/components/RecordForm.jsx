@@ -1,8 +1,16 @@
 import { useState } from 'react';
-import { createMortality, createVaccination } from '../api.js';
-import { coopFarm, coopLive, formatNumber } from '../flock.js';
+import { createFeed, createMortality, createVaccination, createWeight } from '../api.js';
+import {
+  MORTALITY_LABELS,
+  RECORD_MORTALITY_TYPES,
+  coopFarm,
+  coopLive,
+  formatNumber,
+  formatWeight,
+  placeType,
+} from '../flock.js';
 import Dropdown from './Dropdown.jsx';
-import PhotoCapture from './PhotoCapture.jsx';
+import PhotoCapture, { evidencePayload } from './PhotoCapture.jsx';
 
 // YYYY-MM-DD in local time, the format <input type="date"> expects
 const today = () => new Date().toLocaleDateString('en-CA');
@@ -19,21 +27,41 @@ const batchesOn = (batches, farm) => batches.filter((batch) => coopsOn(batch, fa
 // With a single choice there is nothing to pick
 const only = (list) => (list.length === 1 ? list[0] : null);
 
+// `birdsLabel` is left out when the record is not about a number of birds, and
+// `photo` is set for the records that need live photo evidence
 const FORMS = {
   mortality: {
     title: 'Register Mortality',
     birdsLabel: 'Mortality (No. of Birds)',
+    photo: true,
     save: createMortality,
   },
   vaccination: {
     title: 'Add Vaccination',
     birdsLabel: 'No. of Birds Administered',
+    photo: true,
     save: createVaccination,
+  },
+  feed: {
+    title: 'Enter Feed',
+    save: createFeed,
+  },
+  weight: {
+    title: 'Enter Avg Weight',
+    birdsLabel: 'No. of Birds Weighed',
+    save: createWeight,
   },
 };
 
-// Form for a mortality or vaccination record against one coop. Opened from the
-// dashboard, or from a coop page with only that coop's batches to choose from.
+// Average weight per bird, in grams, or null until both numbers are filled in
+function averageGrams(totalKg, birds) {
+  if (!(Number(totalKg) > 0 && Number(birds) > 0)) return null;
+  return Math.round((Number(totalKg) * 1000) / Number(birds));
+}
+
+// Form for a mortality, vaccination, feed or weight record against one coop.
+// Opened from the dashboard, or from a coop page with only that coop's batches
+// to choose from.
 export default function RecordForm({
   type,
   batches,
@@ -57,12 +85,17 @@ export default function RecordForm({
   const [coopId, setCoopId] = useState(
     (onlyBatch && only(coopsOn(onlyBatch, onlyFarm))?._id) ?? '',
   );
+  // Mortality type picked by hand; until then it follows the chosen coop
+  const [pickedType, setPickedType] = useState('');
   const [birds, setBirds] = useState('');
   const [reason, setReason] = useState('');
   const [date, setDate] = useState(today);
   const [vaccine, setVaccine] = useState('');
   const [remarks, setRemarks] = useState('');
-  const [evidence, setEvidence] = useState(null);
+  const [feedType, setFeedType] = useState('');
+  const [quantityKg, setQuantityKg] = useState('');
+  const [totalWeightKg, setTotalWeightKg] = useState('');
+  const [evidence, setEvidence] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -70,11 +103,18 @@ export default function RecordForm({
   const batch = farmBatches.find((b) => b._id === batchId);
   const batchCoops = batch ? coopsOn(batch, farm) : [];
   const coop = batchCoops.find((c) => c._id === coopId);
+  const mortalityType = pickedType || (coop ? placeType(coop.name) : '');
+  const average = averageGrams(totalWeightKg, birds);
 
   function chooseBatch(id, onFarm = farm) {
     const chosen = batches.find((b) => b._id === id);
     setBatchId(id);
-    setCoopId((chosen && only(coopsOn(chosen, onFarm))?._id) ?? '');
+    chooseCoop((chosen && only(coopsOn(chosen, onFarm))?._id) ?? '');
+  }
+
+  function chooseCoop(id) {
+    setCoopId(id);
+    setPickedType('');
   }
 
   function chooseFarm(next) {
@@ -86,22 +126,25 @@ export default function RecordForm({
     e.preventDefault();
     if (!batch) return setError('Please select a farm and a batch.');
     if (!coop) return setError('Please select a coop.');
-    if (Number(birds) > coopLive(coop)) {
+    if (config.birdsLabel && Number(birds) > coopLive(coop)) {
       return setError(`Only ${formatNumber(coopLive(coop))} live birds are in ${coop.name}.`);
     }
-    if (!evidence) return setError('Please take a live photo.');
+    if (config.photo && evidence.length === 0) return setError('Please take a live photo.');
 
     setSubmitting(true);
     setError('');
     try {
-      const details =
-        type === 'mortality' ? { reason } : { date, vaccine, remarks };
+      const details = {
+        mortality: { birds: Number(birds), type: mortalityType, reason },
+        vaccination: { birds: Number(birds), date, vaccine, remarks },
+        feed: { date, feedType, quantityKg: Number(quantityKg), remarks },
+        weight: { birds: Number(birds), date, totalWeightKg: Number(totalWeightKg), remarks },
+      }[type];
       const saved = await config.save({
         batchId,
         coopId,
-        birds: Number(birds),
         ...details,
-        ...evidence,
+        ...evidencePayload(evidence),
       });
       onSaved(saved.batch);
     } catch (err) {
@@ -120,6 +163,18 @@ export default function RecordForm({
       </div>
     );
   }
+
+  const remarksField = (
+    <label className="field">
+      <span>Remarks</span>
+      <textarea
+        rows="2"
+        value={remarks}
+        onChange={(e) => setRemarks(e.target.value)}
+        placeholder="Optional"
+      />
+    </label>
+  );
 
   return (
     <div className="manage">
@@ -161,55 +216,127 @@ export default function RecordForm({
               value: c._id,
               label: `${c.name} (${formatNumber(coopLive(c))} live)`,
             }))}
-            onChange={setCoopId}
+            onChange={chooseCoop}
             placeholder={batch ? 'Select coop' : 'Select batch first'}
           />
         </div>
 
+        {type === 'mortality' && (
+          <>
+            <div className="field">
+              <label htmlFor="record-mortality-type">Mortality Type</label>
+              <Dropdown
+                id="record-mortality-type"
+                value={mortalityType}
+                options={RECORD_MORTALITY_TYPES.map((value) => ({
+                  value,
+                  label: MORTALITY_LABELS[value],
+                }))}
+                onChange={setPickedType}
+                placeholder={coop ? 'Select type' : 'Select coop first'}
+              />
+            </div>
+            <p className="hint">Box mortality is entered with the batch itself.</p>
+          </>
+        )}
+
+        {type !== 'mortality' && (
+          <label className="field">
+            <span>Date</span>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          </label>
+        )}
+
         {type === 'vaccination' && (
+          <label className="field">
+            <span>Vaccine</span>
+            <input
+              type="text"
+              value={vaccine}
+              onChange={(e) => setVaccine(e.target.value)}
+              placeholder="e.g. Lasota"
+              required
+            />
+          </label>
+        )}
+
+        {type === 'feed' && (
           <>
             <label className="field">
-              <span>Date</span>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
-            </label>
-
-            <label className="field">
-              <span>Vaccine</span>
+              <span>Feed Type</span>
               <input
                 type="text"
-                value={vaccine}
-                onChange={(e) => setVaccine(e.target.value)}
-                placeholder="e.g. Lasota"
+                value={feedType}
+                onChange={(e) => setFeedType(e.target.value)}
+                placeholder="e.g. Starter"
                 required
               />
             </label>
 
             <label className="field">
-              <span>Remarks</span>
-              <textarea
-                rows="2"
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-                placeholder="Optional"
+              <span>Feed Quantity (kg)</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                min="0.001"
+                step="any"
+                value={quantityKg}
+                onChange={(e) => setQuantityKg(e.target.value)}
+                placeholder="0"
+                required
               />
             </label>
           </>
         )}
 
-        <label className="field">
-          <span>{config.birdsLabel}</span>
-          <input
-            type="number"
-            inputMode="numeric"
-            min="1"
-            max={coop ? coopLive(coop) : undefined}
-            step="1"
-            value={birds}
-            onChange={(e) => setBirds(e.target.value)}
-            placeholder={coop ? `Up to ${formatNumber(coopLive(coop))}` : '0'}
-            required
-          />
-        </label>
+        {type === 'vaccination' && remarksField}
+
+        {config.birdsLabel && (
+          <label className="field">
+            <span>{config.birdsLabel}</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min="1"
+              max={coop ? coopLive(coop) : undefined}
+              step="1"
+              value={birds}
+              onChange={(e) => setBirds(e.target.value)}
+              placeholder={coop ? `Up to ${formatNumber(coopLive(coop))}` : '0'}
+              required
+            />
+          </label>
+        )}
+
+        {type === 'weight' && (
+          <>
+            <label className="field">
+              <span>Total Weight (kg)</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                min="0.001"
+                step="any"
+                value={totalWeightKg}
+                onChange={(e) => setTotalWeightKg(e.target.value)}
+                placeholder="0"
+                required
+              />
+            </label>
+
+            <label className="field">
+              <span>Avg Weight per Bird</span>
+              <input
+                type="text"
+                value={average === null ? '' : formatWeight(average)}
+                placeholder="Worked out from the two above"
+                readOnly
+              />
+            </label>
+          </>
+        )}
+
+        {(type === 'feed' || type === 'weight') && remarksField}
 
         {type === 'mortality' && (
           <label className="field">
@@ -224,10 +351,12 @@ export default function RecordForm({
           </label>
         )}
 
-        <div className="field">
-          <span>Photo (live, geotagged with time stamp)</span>
-          <PhotoCapture value={evidence} onChange={setEvidence} />
-        </div>
+        {config.photo && (
+          <div className="field">
+            <span>Photos (live, geotagged with time stamp)</span>
+            <PhotoCapture value={evidence} onChange={setEvidence} />
+          </div>
+        )}
 
         {error && (
           <p className="error" role="alert">

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getMortalities, getVaccinations } from '../api.js';
-import { formatNumber } from '../flock.js';
+import { formatNumber, mortalityLabel, photoCount } from '../flock.js';
 import PhotoLink from './PhotoLink.jsx';
 
 const formatDate = (value) =>
@@ -18,7 +18,7 @@ export default function RecentRecords() {
         const merged = [
           ...mortalities.map((r) => ({
             ...r,
-            kind: 'Mortality',
+            kind: mortalityLabel(r),
             detail: `${formatNumber(r.birds)} birds · ${r.reason}`,
             when: r.createdAt,
             photoUrl: `/mortalities/${r._id}/photo`,
@@ -60,7 +60,7 @@ export default function RecentRecords() {
                 {record.createdBy?.name && ` · By ${record.createdBy.name}`}
               </small>
             </div>
-            <PhotoLink url={record.photoUrl} />
+            <PhotoLink url={record.photoUrl} count={photoCount(record)} />
           </li>
         ))}
       </ul>

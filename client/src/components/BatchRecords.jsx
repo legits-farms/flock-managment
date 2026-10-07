@@ -1,4 +1,13 @@
-import { formatNumber } from '../flock.js';
+import { useState } from 'react';
+import {
+  MORTALITY_LABELS,
+  photoCount,
+  formatKg,
+  formatNumber,
+  formatWeight,
+  mortalityLabel,
+  mortalityType,
+} from '../flock.js';
 import PhotoLink from './PhotoLink.jsx';
 
 const formatDate = (value) =>
@@ -16,17 +25,45 @@ const formatDateTime = (value) =>
 // A MongoDB id starts with the time it was created at, in seconds
 const idTime = (id) => new Date(parseInt(id.slice(0, 8), 16) * 1000);
 
+const formatTime = (value) =>
+  new Date(value).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
+// A feed or weight row: the whole row opens the entry when the page can show it
+function EntryRow({ onOpen, children }) {
+  if (!onOpen) return <div>{children}</div>;
+  return (
+    <button type="button" className="row-button" onClick={onOpen}>
+      <span>{children}</span>
+      <span className="alert-go" aria-hidden="true">
+        ›
+      </span>
+    </button>
+  );
+}
+
 // Records made before logins existed have no person attached
 const byName = (who) => who?.name ?? '';
 
-// Vaccinations / Mortality / Activity Logs tabs, shared by three pages.
-// `records` is { mortalities, vaccinations, shifts }, or null while loading.
+// Vaccinations / Feeding / Weight / Mortality / Activity Logs tabs, shared by three pages.
+// `records` is { mortalities, vaccinations, shifts, feeds, weights }, or null while loading.
 // Pass one of:
 //   batch                 – a batch page
 //   entries               – a coop page: the { batch, coop } pairs of every batch in that coop
 //   farmBatches + entries – a farm page: the batches registered to the farm, and
 //                           the { batch, coop } pairs of every coop on it
-export default function BatchRecords({ view, batch, entries, farmBatches, records, error }) {
+// `onOpenEntry(kind, record)` makes feed and weight rows open their details.
+export default function BatchRecords({
+  view,
+  batch,
+  entries,
+  farmBatches,
+  records,
+  error,
+  onOpenEntry,
+}) {
+  // Mortality type shown on the Mortality tab: '' for all of them
+  const [shownType, setShownType] = useState('');
+
   if (error) {
     return (
       <p className="error" role="alert">
@@ -46,6 +83,8 @@ export default function BatchRecords({ view, batch, entries, farmBatches, record
   const inScope = (r) => !coopIds || coopIds.has(r.coopId);
   const mortalities = records.mortalities.filter(inScope);
   const vaccinations = records.vaccinations.filter(inScope);
+  const feeds = (records.feeds ?? []).filter(inScope);
+  const weights = (records.weights ?? []).filter(inScope);
   const shifts = (records.shifts ?? []).filter(
     (s) => !coopIds || coopIds.has(s.fromCoopId) || coopIds.has(s.toCoopId),
   );
@@ -90,7 +129,76 @@ export default function BatchRecords({ view, batch, entries, farmBatches, record
                     )}
                   </small>
                 </div>
-                <PhotoLink url={`/vaccinations/${r._id}/photo`} />
+                <PhotoLink url={`/vaccinations/${r._id}/photo`} count={photoCount(r)} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    );
+  }
+
+  if (view === 'feeding') {
+    const totalKg = feeds.reduce((sum, r) => sum + r.quantityKg, 0);
+    return (
+      <section className="card">
+        <h2 className="eyebrow">Feeding ({formatKg(totalKg)})</h2>
+        {feeds.length === 0 ? (
+          <p className="empty">No feed entered for this {scope} yet.</p>
+        ) : (
+          <ul className="recent-list">
+            {feeds.map((r) => (
+              <li key={r._id}>
+                <EntryRow onOpen={onOpenEntry && (() => onOpenEntry('feed', r))}>
+                  <strong>
+                    {formatKg(r.quantityKg)} · {r.feedType}
+                  </strong>
+                  <small>
+                    {label(r)} · {formatDate(r.date)}, {formatTime(r.createdAt)}
+                    {byName(r.createdBy) && ` · By ${byName(r.createdBy)}`}
+                    {r.remarks && (
+                      <>
+                        <br />
+                        {r.remarks}
+                      </>
+                    )}
+                  </small>
+                </EntryRow>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    );
+  }
+
+  if (view === 'weight') {
+    return (
+      <section className="card">
+        <h2 className="eyebrow">
+          Avg Weight{weights.length > 0 && ` (latest ${formatWeight(weights[0].avgWeightG)})`}
+        </h2>
+        {weights.length === 0 ? (
+          <p className="empty">No weight entered for this {scope} yet.</p>
+        ) : (
+          <ul className="recent-list">
+            {weights.map((r) => (
+              <li key={r._id}>
+                <EntryRow onOpen={onOpenEntry && (() => onOpenEntry('weight', r))}>
+                  <strong>{formatWeight(r.avgWeightG)} avg</strong>
+                  <small>
+                    {label(r)} · {formatDate(r.date)}, {formatTime(r.createdAt)}
+                    {byName(r.createdBy) && ` · By ${byName(r.createdBy)}`}
+                    <br />
+                    {formatNumber(r.birds)} birds weighed · {formatKg(r.totalWeightKg)} in total
+                    {r.remarks && (
+                      <>
+                        <br />
+                        {r.remarks}
+                      </>
+                    )}
+                  </small>
+                </EntryRow>
               </li>
             ))}
           </ul>
@@ -100,39 +208,65 @@ export default function BatchRecords({ view, batch, entries, farmBatches, record
   }
 
   if (view === 'mortality') {
-    const registered = mortalities.reduce((sum, r) => sum + r.birds, 0);
-    const onArrival = batches.reduce((sum, b) => sum + b.boxMortality, 0);
+    // Birds lost per type. Box mortality comes with the batches, the rest are records.
+    const lost = { box: batches.reduce((sum, b) => sum + b.boxMortality, 0) };
+    for (const r of mortalities) lost[mortalityType(r)] = (lost[mortalityType(r)] ?? 0) + r.birds;
+    const total = Object.values(lost).reduce((sum, birds) => sum + birds, 0);
+
+    const shownRecords = mortalities.filter((r) => !shownType || mortalityType(r) === shownType);
+    const shownBatches = !shownType || shownType === 'box' ? batches : [];
     return (
       <section className="card">
-        <h2 className="eyebrow">Mortality ({formatNumber(registered + onArrival)} birds)</h2>
-        {mortalities.length === 0 && batches.length === 0 && (
-          <p className="empty">No mortality registered for this {scope} yet.</p>
+        <h2 className="eyebrow">Mortality ({formatNumber(total)} birds)</h2>
+        <div className="segments" role="tablist">
+          {['', 'brooding', 'box', 'shift', 'coop'].map((type) => (
+            <button
+              key={type}
+              type="button"
+              role="tab"
+              aria-selected={shownType === type}
+              className={shownType === type ? 'active' : ''}
+              onClick={() => setShownType(type)}
+            >
+              {type ? MORTALITY_LABELS[type] : 'All'}
+              {(type ? lost[type] : total) > 0 && (
+                <span>{formatNumber(type ? lost[type] : total)}</span>
+              )}
+            </button>
+          ))}
+        </div>
+        {shownRecords.length === 0 && shownBatches.length === 0 && (
+          <p className="empty">
+            {shownType === 'box' && scope === 'coop'
+              ? 'Box mortality is counted on the batch, not on a coop.'
+              : `No ${shownType ? `${MORTALITY_LABELS[shownType].toLowerCase()} ` : ''}mortality registered for this ${scope} yet.`}
+          </p>
         )}
         <ul className="recent-list">
-          {mortalities.map((r) => (
+          {shownRecords.map((r) => (
             <li key={r._id}>
               <div>
                 <strong>
                   {formatNumber(r.birds)} birds · {label(r)}
                 </strong>
                 <small>
-                  {formatDateTime(r.createdAt)}
+                  {mortalityLabel(r)} · {formatDateTime(r.createdAt)}
                   {byName(r.createdBy) && ` · By ${byName(r.createdBy)}`}
                   <br />
                   {r.reason}
                 </small>
               </div>
-              <PhotoLink url={`/mortalities/${r._id}/photo`} />
+              <PhotoLink url={`/mortalities/${r._id}/photo`} count={photoCount(r)} />
             </li>
           ))}
-          {batches.map((b) => (
+          {shownBatches.map((b) => (
             <li key={b._id}>
               <div>
                 <strong>
                   {formatNumber(b.boxMortality)} birds · On arrival
                   {scope === 'farm' && ` · ${b.batchName}`}
                 </strong>
-                <small>{formatDate(b.startDate)} · Entered with the batch</small>
+                <small>Box mortality · {formatDate(b.startDate)} · Entered with the batch</small>
               </div>
             </li>
           ))}
@@ -146,7 +280,7 @@ export default function BatchRecords({ view, batch, entries, farmBatches, record
       key: b._id,
       when: new Date(b.createdAt),
       title: scope === 'farm' ? `Batch registered · ${b.batchName}` : 'Batch registered',
-      detail: `${formatNumber(b.numberOfBirds)} birds · ${formatNumber(b.boxMortality)} mortality on arrival`,
+      detail: `${formatNumber(b.numberOfBirds)} birds · ${formatNumber(b.boxMortality)} box mortality`,
       by: byName(b.createdBy),
     })),
     // Coops created by a shift show up as the shift itself, further down
@@ -168,13 +302,15 @@ export default function BatchRecords({ view, batch, entries, farmBatches, record
       key: s._id,
       when: new Date(s.createdAt),
       title: `Birds shifted · ${shiftPlace(s, s.fromCoopName, s.fromFarm)} → ${shiftPlace(s, s.toCoopName, s.toFarm)}`,
-      detail: `${scope === 'batch' ? '' : `${batchName(s)} · `}${formatNumber(s.birds)} birds · ${s.reason}`,
+      detail: `${scope === 'batch' ? '' : `${batchName(s)} · `}${formatNumber(s.birds)} birds${
+        s.mortality > 0 ? ` · ${formatNumber(s.mortality)} shift mortality` : ''
+      } · ${s.reason}`,
       by: byName(s.createdBy),
     })),
     ...mortalities.map((r) => ({
       key: r._id,
       when: new Date(r.createdAt),
-      title: `Mortality registered · ${label(r)}`,
+      title: `${mortalityLabel(r)} registered · ${label(r)}`,
       detail: `${formatNumber(r.birds)} birds · ${r.reason}`,
       by: byName(r.createdBy),
     })),
@@ -183,6 +319,20 @@ export default function BatchRecords({ view, batch, entries, farmBatches, record
       when: new Date(r.createdAt),
       title: `Vaccination added · ${label(r)}`,
       detail: `${r.vaccine} · ${formatNumber(r.birds)} birds`,
+      by: byName(r.createdBy),
+    })),
+    ...feeds.map((r) => ({
+      key: r._id,
+      when: new Date(r.createdAt),
+      title: `Feed entered · ${label(r)}`,
+      detail: `${formatKg(r.quantityKg)} · ${r.feedType}`,
+      by: byName(r.createdBy),
+    })),
+    ...weights.map((r) => ({
+      key: r._id,
+      when: new Date(r.createdAt),
+      title: `Weight entered · ${label(r)}`,
+      detail: `${formatWeight(r.avgWeightG)} avg · ${formatNumber(r.birds)} birds weighed`,
       by: byName(r.createdBy),
     })),
   ].sort((a, b) => b.when - a.when);

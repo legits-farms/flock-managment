@@ -3,7 +3,13 @@ import { addCoop, addCoopName } from '../api.js';
 import {
   coopFarm,
   coopKey,
+  coopOccupant,
   coopLive,
+  BROODING_DAYS,
+  batchAge,
+  batchAgeDays,
+  broodingDue,
+  coopsForBatch,
   coopsOnFarm,
   formatNumber,
   liveBirds,
@@ -28,12 +34,14 @@ const VIEWS = [
 
 export default function ManageFlock({
   batch,
+  allBatches,
   farms,
   coopsByFarm,
   onOptions,
   onUpdated,
   onBack,
   onOpenCoop,
+  onShift,
 }) {
   // A batch can be spread over several farms; its own is offered first
   const [farm, setFarm] = useState(batch.shiftToFarm ?? '');
@@ -45,10 +53,16 @@ export default function ManageFlock({
   const { records, error: recordsError } = useBatchRecords(batch._id);
 
   const unallocated = unallocatedBirds(batch);
+  // The batch's brooding houses still holding birds past the brooding period
+  const brooding = batch.coops.flatMap((coop) => broodingDue(coop.name, [{ batch, coop }]));
+  const broodingBirds = brooding.reduce((sum, entry) => sum + entry.birds, 0);
   // A coop can only be used once per batch
   const used = new Set(batch.coops.map((coop) => coopKey(batch, coop)));
-  const freeCoops = coopsOnFarm(coopsByFarm, farm).filter(
-    (coop) => !used.has(coopKey({ shiftToFarm: farm }, { name: coop }))
+  // … and a coop holds only one batch at a time
+  const freeCoops = coopsForBatch(coopsOnFarm(coopsByFarm, farm), batch).filter(
+    (coop) =>
+      !used.has(coopKey({ shiftToFarm: farm }, { name: coop })) &&
+      !coopOccupant(allBatches, farm, coop, batch)
   );
 
   function chooseFarm(next) {
@@ -100,7 +114,10 @@ export default function ManageFlock({
         <h2 className="eyebrow">Allocate / Manage the Flock</h2>
         <div className="batch-head manage-head">
           <h3>{batch.batchName}</h3>
-          <span className="badge">{batch.breed}</span>
+          <span className="badges">
+            <span className="badge">{batch.breed}</span>
+            <span className="badge age">Age {batchAge(batch)}</span>
+          </span>
         </div>
 
         <dl className="batch-stats five">
@@ -132,6 +149,25 @@ export default function ManageFlock({
           <p className="notice">{formatNumber(unallocated)} birds not yet allocated to coops</p>
         )}
 
+        {brooding.length > 0 && (
+          <p className="notice">
+            The brooding period has ended. Shift the {formatNumber(broodingBirds)} birds in{' '}
+            {brooding.map(({ coop }) => coop.name).join(' and ')} to coops.{' '}
+            <button
+              type="button"
+              className="link inline"
+              onClick={() =>
+                onShift({ coopKey: coopKey(batch, brooding[0].coop), batchId: batch._id })
+              }
+            >
+              Open shift form ›
+            </button>
+          </p>
+        )}
+        {brooding.length === 0 && unallocated > 0 && batchAgeDays(batch) >= BROODING_DAYS && (
+          <p className="notice">The brooding period has ended. Allocate these birds to coops.</p>
+        )}
+
         <details className="batch-more">
           <summary>Batch details</summary>
           <dl className="batch-details">
@@ -144,6 +180,10 @@ export default function ManageFlock({
               <dd>
                 {batch.age} {batch.ageUnit}
               </dd>
+            </div>
+            <div>
+              <dt>Age Now</dt>
+              <dd>{batchAge(batch, { weeks: true })}</dd>
             </div>
             <div>
               <dt>Vendor</dt>

@@ -1,15 +1,32 @@
 import { useState } from 'react';
 import { createShift } from '../api.js';
-import { coopGroups, coopLive, coopsOnFarm, formatNumber } from '../flock.js';
+import {
+  coopGroups,
+  coopLive,
+  coopOccupant,
+  coopsForBatch,
+  coopsOnFarm,
+  formatNumber,
+} from '../flock.js';
 import Dropdown from './Dropdown.jsx';
+import PhotoCapture, { evidencePayload } from './PhotoCapture.jsx';
 
 // YYYY-MM-DD in local time, the format <input type="date"> expects
 const today = () => new Date().toLocaleDateString('en-CA');
 
 const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
-// Dashboard form for moving live birds from one coop to another
-export default function ShiftForm({ batches, farms, coopsByFarm, onSaved, onCancel, onNavigate }) {
+// Dashboard form for moving live birds from one coop to another. `from`
+// ({ coopKey, batchId }) fills in the coop and batch to shift out of.
+export default function ShiftForm({
+  from,
+  batches,
+  farms,
+  coopsByFarm,
+  onSaved,
+  onCancel,
+  onNavigate,
+}) {
   // Only coops that still hold live birds can be shifted from
   const groups = coopGroups(batches)
     .map((group) => ({
@@ -20,12 +37,18 @@ export default function ShiftForm({ batches, farms, coopsByFarm, onSaved, onCanc
 
   const fromFarms = [...new Map(groups.map((g) => [g.farm.toLowerCase(), g.farm])).values()];
 
-  const [fromFarm, setFromFarm] = useState(fromFarms.length === 1 ? fromFarms[0] : null);
-  const [fromKey, setFromKey] = useState('');
-  const [batchId, setBatchId] = useState('');
+  const preset = from && groups.find((g) => g.key === from.coopKey);
+  const [fromFarm, setFromFarm] = useState(
+    preset ? preset.farm : fromFarms.length === 1 ? fromFarms[0] : null,
+  );
+  const [fromKey, setFromKey] = useState(preset?.key ?? '');
+  const [batchId, setBatchId] = useState(preset ? from.batchId : '');
   const [toFarm, setToFarm] = useState('');
   const [toCoop, setToCoop] = useState('');
   const [birds, setBirds] = useState('');
+  // Birds that died on the way, and the photo that goes with them
+  const [mortality, setMortality] = useState('');
+  const [evidence, setEvidence] = useState([]);
   const [reason, setReason] = useState('');
   const [date, setDate] = useState(today);
   const [submitting, setSubmitting] = useState(false);
@@ -39,10 +62,14 @@ export default function ShiftForm({ batches, farms, coopsByFarm, onSaved, onCanc
       ? group.entries[0]
       : group?.entries.find(({ batch }) => batch._id === batchId);
   const available = entry ? coopLive(entry.coop) : 0;
+  const lost = Number(mortality) || 0;
 
-  // Every coop of the destination farm except the one the birds are leaving
-  const toCoops = coopsOnFarm(coopsByFarm, toFarm).filter(
-    (name) => !(group && sameName(name, group.name) && sameName(toFarm, group.farm)),
+  // Every coop of the destination farm the batch can go to, except the one the
+  // birds are leaving and any that another batch is in
+  const toCoops = coopsForBatch(coopsOnFarm(coopsByFarm, toFarm), entry?.batch).filter(
+    (name) =>
+      !(group && sameName(name, group.name) && sameName(toFarm, group.farm)) &&
+      !(entry && coopOccupant(batches, toFarm, name, entry.batch)),
   );
 
   function chooseFromFarm(farm) {
@@ -65,10 +92,14 @@ export default function ShiftForm({ batches, farms, coopsByFarm, onSaved, onCanc
     e.preventDefault();
     if (!group) return setError('Please select the farm and coop to shift from.');
     if (!entry) return setError('Please select the batch to shift.');
-    if (!toFarm || !toCoop) return setError('Please select the farm and coop to shift to.');
+    if (!toFarm || !toCoops.includes(toCoop)) return setError('Please select the farm and coop to shift to.');
     if (Number(birds) > available) {
       return setError(`Only ${formatNumber(available)} live birds are in ${group.name}.`);
     }
+    if (lost >= Number(birds)) {
+      return setError('Shift mortality must be less than the number of birds shifted.');
+    }
+    if (lost > 0 && evidence.length === 0) return setError('Please take a live photo of the shift mortality.');
 
     setSubmitting(true);
     setError('');
@@ -79,8 +110,10 @@ export default function ShiftForm({ batches, farms, coopsByFarm, onSaved, onCanc
         toFarm,
         toCoop,
         birds: Number(birds),
+        mortality: lost,
         reason,
         date,
+        ...(lost > 0 ? evidencePayload(evidence) : {}),
       });
       onSaved(saved.batch);
     } catch (err) {
@@ -173,7 +206,7 @@ export default function ShiftForm({ batches, farms, coopsByFarm, onSaved, onCanc
             <label htmlFor="shift-to-coop">Coop</label>
             <Dropdown
               id="shift-to-coop"
-              value={toCoop}
+              value={toCoops.includes(toCoop) ? toCoop : ''}
               options={toCoops.map((name) => ({ value: name, label: name }))}
               onChange={setToCoop}
               placeholder={toFarm ? 'Select coop' : 'Select farm first'}
@@ -195,6 +228,33 @@ export default function ShiftForm({ batches, farms, coopsByFarm, onSaved, onCanc
             required
           />
         </label>
+
+        <label className="field">
+          <span>Shift Mortality (birds that died on the way)</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min="0"
+            max={Number(birds) > 0 ? Number(birds) - 1 : undefined}
+            step="1"
+            value={mortality}
+            onChange={(e) => setMortality(e.target.value)}
+            placeholder="0"
+          />
+        </label>
+
+        {lost > 0 && lost < Number(birds) && (
+          <p className="hint">
+            {formatNumber(Number(birds) - lost)} birds will reach {toCoop || 'the coop'}
+          </p>
+        )}
+
+        {lost > 0 && (
+          <div className="field">
+            <span>Photos of the mortality (live, geotagged with time stamp)</span>
+            <PhotoCapture value={evidence} onChange={setEvidence} />
+          </div>
+        )}
 
         <label className="field">
           <span>Date</span>

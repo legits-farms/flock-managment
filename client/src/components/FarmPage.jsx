@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { addCoopName } from '../api.js';
 import {
+  batchAge,
+  broodingAge,
   coopGroups,
   coopLive,
   farmSummary,
@@ -137,7 +139,17 @@ export default function FarmPage({
                 return (
                   <li key={group.key}>
                     <div>
-                      <strong>{group.name}</strong>
+                      <strong>
+                        {group.name}
+                        {broodingAge(group.name, group.entries) && (
+                          <>
+                            {' '}
+                            <span className="badge age">
+                              Age {broodingAge(group.name, group.entries)}
+                            </span>
+                          </>
+                        )}
+                      </strong>
                       <small>
                         {formatNumber(coopBirds)} live ·{' '}
                         {group.entries.map(({ batch }) => batch.batchName).join(', ')}
@@ -180,7 +192,7 @@ export default function FarmPage({
                   <div>
                     <strong>{batch.batchName}</strong>
                     <small>
-                      {batch.breed} · Started {formatDate(batch.startDate)}
+                      {batch.breed} · Age {batchAge(batch)} · Started {formatDate(batch.startDate)}
                       <br />
                       {formatNumber(liveBirds(batch))} live · {formatNumber(totalMortality(batch))}{' '}
                       mortality

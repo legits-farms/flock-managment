@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { addFarm } from '../api.js';
-import { farmSummary, formatNumber } from '../flock.js';
+import { batchAge, farmSummary, formatNumber } from '../flock.js';
 import NameSheet from './NameSheet.jsx';
 
 // The list of farms, what each one currently holds, and a way to add another.
@@ -57,7 +57,7 @@ export default function Farms({ farms, batches, onOptions, onOpen }) {
                     {onFarm.length === 0 && <span className="chip">No batches yet</span>}
                     {onFarm.map((batch) => (
                       <span key={batch._id} className="chip">
-                        {batch.batchName} · {batch.breed}
+                        {batch.batchName} · {batch.breed} · {batchAge(batch)}
                       </span>
                     ))}
                   </span>

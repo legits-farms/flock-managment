@@ -1,10 +1,21 @@
 import { useState } from 'react';
 import { addCoopName } from '../api.js';
-import { coopGroups, coopLive, coopsOnFarm, formatNumber } from '../flock.js';
+import {
+  broodingAge,
+  broodingDue,
+  coopGroups,
+  coopLive,
+  coopsOnFarm,
+  formatNumber,
+} from '../flock.js';
 import LoadStatus from './LoadStatus.jsx';
 import NameSheet from './NameSheet.jsx';
 
 const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+// The house a coop is part of: its name without the partition letter, so
+// "Coop 1A" … "Coop 1H" are all "Coop 1" and "Brooding A" is "Brooding"
+const houseOf = (name) => name.trim().replace(/(\s+|(?<=\d))[a-z]$/i, '');
 
 // The coops of each farm, one farm per tab. A coop holding birds opens its page.
 export default function CoopList({
@@ -18,6 +29,7 @@ export default function CoopList({
   onOpen,
 }) {
   const [chosenFarm, setChosenFarm] = useState(null);
+  const [chosenHouse, setChosenHouse] = useState(null);
   const [adding, setAdding] = useState(false);
 
   if (loading || error) return <LoadStatus loading={loading} error={error} onRetry={onRetry} />;
@@ -38,11 +50,21 @@ export default function CoopList({
       .map((group) => ({ name: group.name, group })),
   ];
 
+  // Only worth filtering by when the farm's coops are split into partitions
+  const houses = coops.reduce(
+    (found, { name }) =>
+      found.some((other) => sameName(other, houseOf(name))) ? found : [...found, houseOf(name)],
+    []
+  );
+  const canFilter = houses.length > 1 && houses.length < coops.length;
+  const house = canFilter ? chosenHouse : null;
+  const shown = house ? coops.filter(({ name }) => sameName(houseOf(name), house)) : coops;
+
   return (
     <div className="manage">
       <div className="list-head">
         <h2>
-          Coops <span>{coops.length}</span>
+          Coops <span>{shown.length}</span>
         </h2>
         <button type="button" className="primary small" onClick={() => setAdding(true)}>
           ＋ Add Coop
@@ -57,12 +79,31 @@ export default function CoopList({
             role="tab"
             aria-selected={name === farm}
             className={name === farm ? 'active' : ''}
-            onClick={() => setChosenFarm(name)}
+            onClick={() => {
+              setChosenFarm(name);
+              setChosenHouse(null);
+            }}
           >
             {name}
           </button>
         ))}
       </div>
+
+      {canFilter && (
+        <div className="subtabs" role="group" aria-label="Filter coops">
+          {[null, ...houses].map((name) => (
+            <button
+              key={name ?? ''}
+              type="button"
+              aria-pressed={name === house}
+              className={name === house ? 'active' : ''}
+              onClick={() => setChosenHouse(name)}
+            >
+              {name ?? 'All'}
+            </button>
+          ))}
+        </div>
+      )}
 
       {coops.length === 0 && <p className="status">No coops on {farm} yet. Add the first one.</p>}
 
@@ -77,9 +118,10 @@ export default function CoopList({
       )}
 
       <ul className="batch-list">
-        {coops.map(({ name, group }) => {
+        {shown.map(({ name, group }) => {
           // A coop no batch has been in shows the same card, all zeros
           const entries = group?.entries ?? [];
+          const current = entries.filter(({ coop }) => coopLive(coop) > 0);
           const entered = entries.reduce((sum, { coop }) => sum + coop.birds, 0);
           const live = entries.reduce((sum, { coop }) => sum + coopLive(coop), 0);
           const livability = entered > 0 ? (live / entered) * 100 : 0;
@@ -89,9 +131,24 @@ export default function CoopList({
               <span className="batch-head">
                 <span className="batch-title">
                   <strong>{name}</strong>
+                  {/* The batch in the coop now: one at a time, but older data may have more */}
+                  <small>
+                    {current.length === 0
+                      ? 'Empty'
+                      : current
+                          .map(({ batch }) => `${batch.batchName} · ${batch.breed}`)
+                          .join(', ')}
+                  </small>
                 </span>
-                <span className="badge">
-                  {entries.length} {entries.length === 1 ? 'batch' : 'batches'}
+                <span className="badges">
+                  {broodingAge(name, entries) && (
+                    <span className="badge age">Age {broodingAge(name, entries)}</span>
+                  )}
+                  {group && (
+                    <span className="alert-go" aria-hidden="true">
+                      ›
+                    </span>
+                  )}
                 </span>
               </span>
 
@@ -115,18 +172,9 @@ export default function CoopList({
               </span>
               <span className="batch-livability">{livability.toFixed(1)}% livability</span>
 
-              {group && (
-                <span className="batch-foot">
-                  <span className="chips">
-                    {entries.map(({ batch }) => (
-                      <span key={batch._id} className="chip">
-                        {batch.batchName} · {batch.breed}
-                      </span>
-                    ))}
-                  </span>
-                  <span className="alert-go" aria-hidden="true">
-                    ›
-                  </span>
+              {broodingDue(name, entries).length > 0 && (
+                <span className="due-note">
+                  The brooding period has ended. Shift these birds to coops.
                 </span>
               )}
             </>

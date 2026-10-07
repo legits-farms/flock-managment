@@ -1,11 +1,24 @@
 import Option from './models/Option.js';
 import { badRequest } from './evidence.js';
 
-// What a new database starts with
-const DEFAULT_FARMS = ['HQ', 'Baktaherhali'];
-// How many coops ("Coop 1" … "Coop N") each default farm starts with
-const DEFAULT_COOPS = { hq: 4, baktaherhali: 9 };
-// Coops listed before coops belonged to a farm were Baktaherhali's nine
+// What a new database starts with. These are always listed first, in this
+// order, ahead of any farms added later.
+const DEFAULT_FARMS = ['Baktaherhali', 'HQ'];
+// A coop split into partitions is listed once per partition: "Coop 1A", "Coop 1B", …
+const partitions = (coop, count) =>
+  Array.from({ length: count }, (_, i) => `Coop ${coop}${String.fromCharCode(65 + i)}`);
+// The coops each default farm starts with
+const DEFAULT_COOPS = {
+  hq: ['Coop 1', 'Coop 2', 'Coop 3', 'Coop 4'],
+  // Two brooding houses, Coop 1 in 8 partitions (A–H) and Coops 2–7 in 6 each (A–F)
+  baktaherhali: [
+    'Brooding A',
+    'Brooding B',
+    ...partitions(1, 8),
+    ...[2, 3, 4, 5, 6, 7].flatMap((coop) => partitions(coop, 6)),
+  ],
+};
+// Coops listed before coops belonged to a farm were Baktaherhali's
 const LEGACY_COOP_FARM = 'Baktaherhali';
 
 const keyOf = (name) => name.trim().toLowerCase();
@@ -29,7 +42,12 @@ async function farmNames() {
     await seed(DEFAULT_FARMS.map((name) => ({ kind: 'farm', name, key: keyOf(name) })));
     farms = await find();
   }
-  return farms.map((farm) => farm.name);
+  // The default farms first, then the rest in the order they were added
+  const rank = (name) => {
+    const index = DEFAULT_FARMS.findIndex((farm) => keyOf(farm) === keyOf(name));
+    return index === -1 ? DEFAULT_FARMS.length : index;
+  };
+  return farms.map((farm) => farm.name).sort((a, b) => rank(a) - rank(b));
 }
 
 async function moveLegacyCoops() {
@@ -61,10 +79,12 @@ export async function listOptions() {
   if (missing.length > 0) {
     await seed(
       missing.flatMap((farm) =>
-        Array.from({ length: DEFAULT_COOPS[keyOf(farm)] }, (_, i) => {
-          const name = `Coop ${i + 1}`;
-          return { kind: 'coop', farm, name, key: coopKey(farm, name) };
-        })
+        DEFAULT_COOPS[keyOf(farm)].map((name) => ({
+          kind: 'coop',
+          farm,
+          name,
+          key: coopKey(farm, name),
+        }))
       )
     );
     coops = await find();

@@ -4,10 +4,16 @@ import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import { requireAuth } from './auth.js';
+import User from './models/User.js';
 import authRoutes from './routes/auth.js';
 import batchRoutes from './routes/batches.js';
 import optionRoutes from './routes/options.js';
-import { mortalityRouter, vaccinationRouter } from './routes/records.js';
+import {
+  feedRouter,
+  mortalityRouter,
+  vaccinationRouter,
+  weightRouter,
+} from './routes/records.js';
 import shiftRoutes from './routes/shifts.js';
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/flock-management';
@@ -23,10 +29,14 @@ export function connectDb() {
     if (process.env.DNS_SERVERS) {
       dns.setServers(process.env.DNS_SERVERS.split(',').map((server) => server.trim()));
     }
-    connecting = mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 }).catch((err) => {
-      connecting = null;
-      throw err;
-    });
+    connecting = mongoose
+      .connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 })
+      // Accounts made before approval existed keep their access
+      .then(() => User.updateMany({ status: { $exists: false } }, { $set: { status: 'approved' } }))
+      .catch((err) => {
+        connecting = null;
+        throw err;
+      });
   }
   return connecting;
 }
@@ -58,6 +68,8 @@ app.use('/api/options', requireAuth, optionRoutes);
 app.use('/api/batches', requireAuth, batchRoutes);
 app.use('/api/mortalities', requireAuth, mortalityRouter);
 app.use('/api/vaccinations', requireAuth, vaccinationRouter);
+app.use('/api/feeds', requireAuth, feedRouter);
+app.use('/api/weights', requireAuth, weightRouter);
 app.use('/api/shifts', requireAuth, shiftRoutes);
 
 app.use((err, req, res, next) => {

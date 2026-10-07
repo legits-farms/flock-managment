@@ -3,7 +3,7 @@
 import mongoose from 'mongoose';
 import { connectDb } from './app.js';
 import Batch from './models/Batch.js';
-import Mortality from './models/Mortality.js';
+import Mortality, { placeType } from './models/Mortality.js';
 import Shift from './models/Shift.js';
 import User from './models/User.js';
 import Vaccination from './models/Vaccination.js';
@@ -53,12 +53,13 @@ async function createBatch({ coops, startedDaysAgo, ...details }) {
 const coopOf = (batch, name, farm) =>
   batch.coops.find((coop) => coop.name === name && (farm ? coop.farm === farm : !coop.farm));
 
-async function addMortality(batch, coopName, birds, reason, days) {
+async function addMortality(batch, coopName, birds, reason, days, type = placeType(coopName)) {
   const coop = coopOf(batch, coopName);
   const when = daysAgo(days);
   coop.mortality += birds;
   await Mortality.create({
     batch: batch._id,
+    type,
     coopId: coop._id,
     coopName,
     birds,
@@ -135,7 +136,7 @@ await addVaccination(sonali, 'Coop 2', 'Lasota', 14, 'Eye drop');
 await addMortality(sonali, 'Coop 1', 12, 'Heat stress', 9);
 await addMortality(sonali, 'Coop 2', 8, 'Weak chicks', 8);
 await addVaccination(sonali, 'Coop 1', 'Gumboro', 6, 'Drinking water');
-await addShift(sonali, 'Coop 2', 'Baktaherhali', 'Coop 9', 300, 'Moved for grow-out', 4);
+await addShift(sonali, 'Coop 2', 'Baktaherhali', 'Coop 7F', 300, 'Moved for grow-out', 4);
 await sonali.save();
 
 // 2. A larger flock at Baktaherhali with some birds still to allocate
@@ -150,15 +151,15 @@ const kadaknath = await createBatch({
   shiftToFarm: 'Baktaherhali',
   startedDaysAgo: 10,
   coops: [
-    ['Coop 1', 2000],
-    ['Coop 2', 2000],
-    ['Coop 3', 1500],
+    ['Brooding A', 2000],
+    ['Brooding B', 2000],
+    ['Coop 1A', 1500],
   ],
 });
-await addVaccination(kadaknath, 'Coop 1', "Marek's", 7);
-await addMortality(kadaknath, 'Coop 3', 15, 'Pecking injuries', 5);
-await addShift(kadaknath, 'Coop 2', 'Baktaherhali', 'Coop 4', 500, 'Overcrowding', 3);
-await addMortality(kadaknath, 'Coop 1', 6, 'Unknown, found in the morning', 1);
+await addVaccination(kadaknath, 'Brooding A', "Marek's", 7);
+await addMortality(kadaknath, 'Coop 1A', 15, 'Pecking injuries', 5);
+await addShift(kadaknath, 'Brooding B', 'Baktaherhali', 'Coop 2A', 500, 'Overcrowding', 3);
+await addMortality(kadaknath, 'Brooding A', 6, 'Unknown, found in the morning', 1);
 await kadaknath.save();
 
 // 3. A new arrival at HQ, not yet allocated to any coop

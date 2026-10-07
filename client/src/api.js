@@ -64,6 +64,12 @@ export const createMortality = (record) =>
 export const createVaccination = (record) =>
   request('/vaccinations', { method: 'POST', body: JSON.stringify(record) });
 
+export const createFeed = (record) =>
+  request('/feeds', { method: 'POST', body: JSON.stringify(record) });
+
+export const createWeight = (record) =>
+  request('/weights', { method: 'POST', body: JSON.stringify(record) });
+
 // Resolves to { id, batch } with the updated batch
 export const createShift = (shift) =>
   request('/shifts', { method: 'POST', body: JSON.stringify(shift) });
@@ -74,12 +80,20 @@ export const getAllMortalities = () => request('/mortalities?all=true');
 
 export const getAllVaccinations = () => request('/vaccinations?all=true');
 
+export const getAllFeeds = () => request('/feeds?all=true');
+
+export const getAllWeights = () => request('/weights?all=true');
+
 // Without a batch id these return the latest records across all batches
 const forBatch = (batchId) => (batchId ? `?batch=${batchId}` : '');
 
 export const getMortalities = (batchId) => request(`/mortalities${forBatch(batchId)}`);
 
 export const getVaccinations = (batchId) => request(`/vaccinations${forBatch(batchId)}`);
+
+export const getFeeds = (batchId) => request(`/feeds${forBatch(batchId)}`);
+
+export const getWeights = (batchId) => request(`/weights${forBatch(batchId)}`);
 
 // Record photos need the login token, so they are fetched rather than linked.
 // Resolves to an object URL; the caller revokes it when done.
@@ -89,7 +103,7 @@ export async function fetchPhoto(path) {
   return URL.createObjectURL(await res.blob());
 }
 
-// Both resolve to the logged-in user and remember the token
+// Resolves to the logged-in user and remembers the token
 async function authenticate(path, credentials) {
   const { token, user } = await request(path, {
     method: 'POST',
@@ -101,7 +115,10 @@ async function authenticate(path, credentials) {
 
 export const login = (credentials) => authenticate('/auth/login', credentials);
 
-export const signup = (credentials) => authenticate('/auth/signup', credentials);
+// A new account waits for the manager's approval, so nobody is logged in yet.
+// Resolves to { pending: true, message }.
+export const signup = (credentials) =>
+  request('/auth/signup', { method: 'POST', body: JSON.stringify(credentials) });
 
 export const getMe = () => request('/auth/me');
 

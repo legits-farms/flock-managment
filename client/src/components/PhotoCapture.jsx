@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 
 const MAX_SIDE = 1280;
+// Matches MAX_PHOTOS in server/src/evidence.js
+export const MAX_PHOTOS = 5;
+
+// What a record form sends for its photos: the first as { photo, location,
+// capturedAt } and any further ones, in the same shape, in `morePhotos`
+export const evidencePayload = (photos) =>
+  photos.length === 0 ? {} : { ...photos[0], morePhotos: photos.slice(1) };
 
 const formatStamp = (date) =>
   date.toLocaleString('en-IN', {
@@ -45,8 +52,9 @@ function drawStampedPhoto(video, location, takenAt) {
   return canvas.toDataURL('image/jpeg', 0.8);
 }
 
-// Live-camera-only photo field. There is deliberately no file input, so a photo
-// cannot be picked from the gallery. `value` is { photo, location, capturedAt }.
+// Live-camera-only photo field, for up to MAX_PHOTOS photos. There is
+// deliberately no file input, so a photo cannot be picked from the gallery.
+// `value` is a list of { photo, location, capturedAt }, in the order taken.
 export default function PhotoCapture({ value, onChange }) {
   const [open, setOpen] = useState(false);
   const [ready, setReady] = useState(false);
@@ -112,27 +120,43 @@ export default function PhotoCapture({ value, onChange }) {
 
   function capture() {
     const takenAt = new Date();
-    onChange({
-      photo: drawStampedPhoto(videoRef.current, location, takenAt),
-      location,
-      capturedAt: takenAt.toISOString(),
-    });
+    onChange([
+      ...value,
+      {
+        photo: drawStampedPhoto(videoRef.current, location, takenAt),
+        location,
+        capturedAt: takenAt.toISOString(),
+      },
+    ]);
     setOpen(false);
   }
 
   return (
     <div className="photo">
-      {value ? (
-        <>
-          <img src={value.photo} alt="Captured, with time and location stamp" />
-          <button type="button" className="secondary" onClick={() => setOpen(true)}>
-            Retake Photo
-          </button>
-        </>
-      ) : (
+      {value.length > 0 && (
+        <ul className="photo-grid">
+          {value.map((shot, i) => (
+            <li key={shot.capturedAt}>
+              <img src={shot.photo} alt={`Photo ${i + 1}, with time and location stamp`} />
+              <button
+                type="button"
+                className="photo-remove"
+                aria-label={`Remove photo ${i + 1}`}
+                onClick={() => onChange(value.filter((other) => other !== shot))}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {value.length < MAX_PHOTOS ? (
         <button type="button" className="secondary" onClick={() => setOpen(true)}>
-          Take Live Photo
+          {value.length === 0 ? 'Take Live Photo' : '＋ Add Another Photo'}
         </button>
+      ) : (
+        <p className="empty">Up to {MAX_PHOTOS} photos per record.</p>
       )}
 
       {open && (

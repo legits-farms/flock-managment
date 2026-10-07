@@ -10,23 +10,32 @@ export default function AuthScreen({ onAuthenticated }) {
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  // Shown after signing up, while the account waits for the manager's approval
+  const [notice, setNotice] = useState('');
 
   const signingUp = mode === 'signup';
 
   function switchMode(next) {
     setMode(next);
     setError('');
+    setNotice('');
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setSubmitting(true);
     setError('');
+    setNotice('');
     try {
-      const user = signingUp
-        ? await signup({ name, phone, password })
-        : await login({ phone, password });
-      onAuthenticated(user);
+      if (signingUp) {
+        const { message } = await signup({ name, phone, password });
+        setMode('login');
+        setPassword('');
+        setNotice(message);
+        setSubmitting(false);
+      } else {
+        onAuthenticated(await login({ phone, password }));
+      }
     } catch (err) {
       setError(err.message);
       setSubmitting(false);
@@ -98,6 +107,12 @@ export default function AuthScreen({ onAuthenticated }) {
           />
         </label>
 
+        {notice && (
+          <p className="notice" role="status">
+            {notice}
+          </p>
+        )}
+
         {error && (
           <p className="error" role="alert">
             {error}
@@ -105,7 +120,7 @@ export default function AuthScreen({ onAuthenticated }) {
         )}
 
         <button type="submit" className="primary" disabled={submitting}>
-          {submitting ? 'Please wait…' : signingUp ? 'Create Account' : 'Log In'}
+          {submitting ? 'Please wait…' : signingUp ? 'Request Access' : 'Log In'}
         </button>
       </form>
     </div>

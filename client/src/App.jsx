@@ -58,8 +58,10 @@ function Flock({ user, onLogout }) {
   // Enter Batch form open over the current tab
   const [entering, setEntering] = useState(false);
   const [managingId, setManagingId] = useState(null);
-  // Dashboard form in progress: 'mortality' | 'vaccination' | 'shift' | null
+  // Dashboard form in progress: 'mortality' | 'vaccination' | 'feed' | 'weight' | 'shift' | null
   const [action, setAction] = useState(null);
+  // Coop and batch the shift form starts on: { coopKey, batchId }, or null
+  const [shiftFrom, setShiftFrom] = useState(null);
   // Key of the coop page being viewed (see coopGroups), or null
   const [coopKey, setCoopKey] = useState(null);
   // Name of the farm page being viewed, or null
@@ -110,9 +112,17 @@ function Flock({ user, onLogout }) {
     setEntering(false);
     setManagingId(null);
     setAction(null);
+    setShiftFrom(null);
     setCoopKey(null);
     setFarmName(null);
     setTab(id);
+  }
+
+  // Opens the shift form, ready to move the given batch out of the given coop
+  function openShift(from) {
+    goToTab('dashboard');
+    setShiftFrom(from);
+    setAction('shift');
   }
 
   function openCoop(key) {
@@ -160,14 +170,19 @@ function Flock({ user, onLogout }) {
           tab === 'dashboard' &&
           (action === 'shift' ? (
             <ShiftForm
+              from={shiftFrom}
               batches={batches}
               farms={options.farms}
               coopsByFarm={options.coops}
               onSaved={(batch) => {
                 handleUpdated(batch);
                 setAction(null);
+                setShiftFrom(null);
               }}
-              onCancel={() => setAction(null)}
+              onCancel={() => {
+                setAction(null);
+                setShiftFrom(null);
+              }}
               onNavigate={goToTab}
             />
           ) : action ? (
@@ -199,12 +214,14 @@ function Flock({ user, onLogout }) {
             <ManageFlock
               key={managing._id}
               batch={managing}
+              allBatches={batches}
               farms={options.farms}
               coopsByFarm={options.coops}
               onOptions={setOptions}
               onUpdated={handleUpdated}
               onBack={() => setManagingId(null)}
               onOpenCoop={openCoop}
+              onShift={openShift}
             />
           ) : (
             <BatchList

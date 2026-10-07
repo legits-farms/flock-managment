@@ -6,6 +6,8 @@ const userSchema = new mongoose.Schema(
     // Digits only; this is what people log in with
     phone: { type: String, required: [true, 'Phone number is required'], unique: true },
     passwordHash: { type: String, required: true, select: false },
+    // A new account can do nothing until the manager approves it
+    status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
   },
   { timestamps: true }
 );

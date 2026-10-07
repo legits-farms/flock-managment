@@ -1,4 +1,12 @@
-import { formatNumber, liveBirds, totalMortality, unallocatedBirds } from '../flock.js';
+import {
+  batchAge,
+  broodingDue,
+  coopGroups,
+  formatNumber,
+  liveBirds,
+  totalMortality,
+  unallocatedBirds,
+} from '../flock.js';
 import LoadStatus from './LoadStatus.jsx';
 import MortalityChart from './MortalityChart.jsx';
 import RecentRecords from './RecentRecords.jsx';
@@ -74,6 +82,10 @@ export default function Dashboard({
   const maxLive = Math.max(...summary.breeds.map((b) => b.live), 1);
   const recent = batches.slice(0, 3);
   const unallocated = batches.reduce((sum, batch) => sum + unallocatedBirds(batch), 0);
+  // Batches that have outgrown their brooding house
+  const due = coopGroups(batches).flatMap((group) =>
+    broodingDue(group.name, group.entries).map((entry) => ({ group, ...entry })),
+  );
 
   return (
     <div className="dashboard">
@@ -134,6 +146,23 @@ export default function Dashboard({
           </span>
           Shift Birds
         </button>
+        <button type="button" className="quick" onClick={() => onAction('feed')}>
+          <span className="quick-icon">
+            <Icon>
+              <path d="M4 11h16a8 8 0 0 1-16 0ZM9 7V4M12 7V3M15 7V4" />
+            </Icon>
+          </span>
+          Enter Feed
+        </button>
+        <button type="button" className="quick" onClick={() => onAction('weight')}>
+          <span className="quick-icon">
+            <Icon>
+              <path d="M6 8h12l2 12H4L6 8Z" />
+              <circle cx="12" cy="5" r="2" />
+            </Icon>
+          </span>
+          Enter Avg Weight
+        </button>
       </div>
 
       {unallocated > 0 && (
@@ -146,6 +175,26 @@ export default function Dashboard({
           </span>
         </button>
       )}
+
+      {due.map(({ group, batch, age, birds }) => (
+        <button
+          key={`${group.key}|${batch._id}`}
+          type="button"
+          className="alert"
+          onClick={() => onAction('shift')}
+        >
+          <span>
+            <strong>
+              {group.name} · {batch.batchName}
+            </strong>{' '}
+            is {formatNumber(age)} days old. The brooding period has ended. Shift its{' '}
+            {formatNumber(birds)} birds to coops.
+          </span>
+          <span className="alert-go" aria-hidden="true">
+            ›
+          </span>
+        </button>
+      ))}
 
       <MortalityChart />
 
@@ -184,7 +233,7 @@ export default function Dashboard({
               <div>
                 <strong>{batch.batchName}</strong>
                 <small>
-                  {batch.breed} · {formatDate(batch.startDate)}
+                  {batch.breed} · Age {batchAge(batch)} · {formatDate(batch.startDate)}
                 </small>
               </div>
               <span>{formatNumber(liveBirds(batch))}</span>

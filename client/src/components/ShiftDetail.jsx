@@ -64,6 +64,15 @@ export default function ShiftDetail({ shift, onBack, onOpenBatch }) {
             <dt>Birds</dt>
             <dd>{formatNumber(shift.birds)} shifted</dd>
           </div>
+          {shift.mortality > 0 && (
+            <div>
+              <dt>Shift Mortality</dt>
+              <dd>
+                {formatNumber(shift.mortality)} died on the way ·{' '}
+                {formatNumber(shift.birds - shift.mortality)} arrived
+              </dd>
+            </div>
+          )}
           <div>
             <dt>Shift Date</dt>
             <dd>{formatDate(shift.date)}</dd>

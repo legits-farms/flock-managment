@@ -1,9 +1,12 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
+import { checkBroodingAge } from '../age.js';
 import { actor } from '../auth.js';
-import { badRequest } from '../evidence.js';
+import { badRequest, parseEvidence } from '../evidence.js';
 import Batch from '../models/Batch.js';
+import Mortality from '../models/Mortality.js';
 import Shift from '../models/Shift.js';
+import { checkCoopFree } from '../occupancy.js';
 import { listedCoop, listedFarm } from '../options.js';
 
 const router = Router();
@@ -25,7 +28,8 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-// Moves live birds of one batch from one of its coops to another coop.
+// Moves live birds of one batch from one of its coops to another coop. Any that
+// died on the way (`mortality`) need the same photo evidence as a mortality record.
 // Responds with { id, batch } carrying the updated batch.
 router.post('/', async (req, res, next) => {
   try {
@@ -40,6 +44,8 @@ router.post('/', async (req, res, next) => {
     if (!farm) throw badRequest('Select the farm to shift to');
     const coopName = await listedCoop(toCoop, farm);
     if (!coopName) throw badRequest('Select the coop to shift to');
+    checkBroodingAge(batch, coopName);
+    await checkCoopFree(batch, farm, coopName);
 
     const birds = Number(req.body.birds);
     if (!Number.isInteger(birds) || birds < 1) {
@@ -47,6 +53,15 @@ router.post('/', async (req, res, next) => {
     }
     const live = from.birds - from.mortality;
     if (birds > live) throw badRequest(`Only ${live} live birds are in ${from.name}`);
+
+    // Birds that died on the way: they leave the coop but never reach the other one
+    const mortality = Number(req.body.mortality ?? 0);
+    if (!Number.isInteger(mortality) || mortality < 0) {
+      throw badRequest('Mortality during the shift must be a whole number');
+    }
+    if (mortality >= birds) {
+      throw badRequest('Mortality during the shift must be less than the birds shifted');
+    }
 
     // A coop without its own farm is on the batch's farm
     const farmOf = (coop) => coop.farm || batch.shiftToFarm || '';
@@ -70,16 +85,36 @@ router.post('/', async (req, res, next) => {
       toCoopName: to.name,
       toFarm: farm,
       birds,
+      mortality,
       reason,
       date,
       createdBy: addedBy,
     });
     await shift.validate();
 
-    from.birds -= birds;
-    to.birds += birds;
+    // Shift mortality is registered like any other, against the coop the birds left
+    const lost =
+      mortality > 0
+        ? new Mortality({
+            batch: batch._id,
+            type: 'shift',
+            shift: shift._id,
+            coopId: from._id,
+            coopName: from.name,
+            birds: mortality,
+            reason: `Died during the shift to ${to.name}`,
+            ...parseEvidence(req.body),
+            createdBy: addedBy,
+          })
+        : null;
+    await lost?.validate();
+
+    from.birds -= birds - mortality;
+    from.mortality += mortality;
+    to.birds += birds - mortality;
     await batch.save();
     await shift.save();
+    await lost?.save();
     res.status(201).json({ id: shift._id, batch });
   } catch (err) {
     next(err);

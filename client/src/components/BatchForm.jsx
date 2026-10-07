@@ -153,7 +153,7 @@ export default function BatchForm({ farms, onOptions, onRegistered }) {
         </label>
 
         <label className="field">
-          <span>Mortality</span>
+          <span>Box Mortality</span>
           <input
             type="number"
             inputMode="numeric"

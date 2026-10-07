@@ -1,4 +1,10 @@
-import { formatNumber, liveBirds, totalMortality, unallocatedBirds } from '../flock.js';
+import {
+  batchAge,
+  formatNumber,
+  liveBirds,
+  totalMortality,
+  unallocatedBirds,
+} from '../flock.js';
 import LoadStatus from './LoadStatus.jsx';
 
 const formatDate = (value) =>
@@ -48,7 +54,10 @@ export default function BatchList({ batches, loading, error, onRetry, onManage, 
                       {batch.shiftToFarm && ` · ${batch.shiftToFarm}`}
                     </small>
                   </span>
-                  <span className="badge">{batch.breed}</span>
+                  <span className="badges">
+                    <span className="badge">{batch.breed}</span>
+                    <span className="badge age">Age {batchAge(batch)}</span>
+                  </span>
                 </span>
 
                 <span className="batch-figures">

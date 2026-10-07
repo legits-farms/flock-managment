@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { actor } from '../auth.js';
 import Batch from '../models/Batch.js';
+import { checkBroodingAge } from '../age.js';
+import { checkCoopFree } from '../occupancy.js';
 import { listedCoop, listedFarm } from '../options.js';
 
 const router = Router();
@@ -69,6 +71,8 @@ router.post('/:id/coops', async (req, res, next) => {
     // Each farm has a fixed list of coops; new ones are added through /api/options/coops
     const name = await listedCoop(req.body.name, farm);
     if (!name) return res.status(400).json({ message: 'Select a coop from the list' });
+    checkBroodingAge(batch, name);
+    await checkCoopFree(batch, farm, name);
     if (!Number.isInteger(birds) || birds < 1) {
       return res
         .status(400)

@@ -12,7 +12,9 @@ const shiftSchema = new mongoose.Schema(
     toCoopId: { type: mongoose.Schema.Types.ObjectId, required: true },
     toCoopName: { type: String, required: true },
     toFarm: { type: String, default: '' },
+    // Birds that left the coop, and how many of those died on the way
     birds: { type: Number, required: true, min: 1 },
+    mortality: { type: Number, default: 0, min: 0 },
     reason: { type: String, required: [true, 'Reason is required'], trim: true },
     date: { type: Date, required: [true, 'Shift date is required'] },
     createdBy: byUser,

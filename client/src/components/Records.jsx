@@ -1,19 +1,44 @@
 import { useEffect, useState } from 'react';
-import { getAllMortalities, getAllShifts, getAllVaccinations } from '../api.js';
-import { coopGroups, coopLive, formatNumber, vaccinatedBirds } from '../flock.js';
+import {
+  getAllFeeds,
+  getAllMortalities,
+  getAllShifts,
+  getAllVaccinations,
+  getAllWeights,
+} from '../api.js';
+import {
+  MORTALITY_LABELS,
+  RECORD_MORTALITY_TYPES,
+  coopGroups,
+  coopLive,
+  formatKg,
+  formatNumber,
+  formatWeight,
+  mortalityLabel,
+  mortalityType,
+  vaccinatedBirds,
+} from '../flock.js';
 import Dropdown from './Dropdown.jsx';
+import EntryDetail from './EntryDetail.jsx';
 import RecordDetail from './RecordDetail.jsx';
 import RecordForm from './RecordForm.jsx';
 import ShiftDetail from './ShiftDetail.jsx';
 
 // View ids match the API path and the RecordDetail `kind`
 const VIEWS = [
-  { id: 'vaccinations', label: 'Vaccinations' },
   { id: 'mortalities', label: 'Mortality' },
+  { id: 'feeds', label: 'Feeding' },
+  { id: 'weights', label: 'Weight' },
+  { id: 'vaccinations', label: 'Vaccinations' },
   { id: 'shifts', label: 'Shifts' },
 ];
 
-const NO_FILTERS = { batchId: '', coopName: '', person: '', from: '', to: '' };
+// The EntryDetail `kind` of the views it shows
+const ENTRY_KINDS = { feeds: 'feed', weights: 'weight' };
+
+const ICONS = { vaccinations: '+', mortalities: '−', shifts: '⇄', feeds: '≡', weights: '⚖' };
+
+const NO_FILTERS = { batchId: '', coopName: '', mortalityType: '', person: '', from: '', to: '' };
 
 const formatDate = (value) =>
   new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -21,7 +46,7 @@ const formatDate = (value) =>
 // YYYY-MM-DD in local time, comparable with <input type="date"> values
 const dayOf = (value) => new Date(value).toLocaleDateString('en-CA');
 
-// Vaccinations and shifts are dated by the day given; mortality by when it was registered
+// Mortality is dated by when it was registered; everything else by the day given
 const recordDate = (kind, r) => (kind === 'mortalities' ? r.createdAt : r.date);
 
 // A shift involves two coops, the other records one
@@ -31,9 +56,24 @@ const EMPTY = {
   vaccinations: 'No vaccinations added yet.',
   mortalities: 'No mortality registered yet.',
   shifts: 'No birds shifted yet.',
+  feeds: 'No feed entered yet.',
+  weights: 'No weight entered yet.',
 };
 
-const SUMMARY = { vaccinations: 'Vaccinated', mortalities: 'Lost', shifts: 'Shifted' };
+// The figure next to the record count: [label, value] for the listed records.
+// Records come newest first, so the first weight is the latest one.
+const SUMMARY = {
+  vaccinations: (list) => ['Birds Vaccinated', formatNumber(birdsIn(list))],
+  mortalities: (list) => ['Birds Lost', formatNumber(birdsIn(list))],
+  shifts: (list) => ['Birds Shifted', formatNumber(birdsIn(list))],
+  feeds: (list) => ['Feed Given', formatKg(list.reduce((sum, r) => sum + r.quantityKg, 0))],
+  weights: (list) => ['Latest Avg Weight', formatWeight(list[0].avgWeightG)],
+};
+
+const birdsIn = (list) => list.reduce((sum, r) => sum + r.birds, 0);
+
+const formatTime = (value) =>
+  new Date(value).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
 // "Today", "Yesterday" or the date, for the headings between days
 function dayLabel(day) {
@@ -61,6 +101,10 @@ function matches(kind, r, filters) {
   return (
     (!filters.batchId || r.batch?._id === filters.batchId) &&
     (!filters.coopName || coopsOf(r).includes(filters.coopName)) &&
+    // Only mortality records have a mortality type
+    (!filters.mortalityType ||
+      kind !== 'mortalities' ||
+      mortalityType(r) === filters.mortalityType) &&
     (!filters.person || r.createdBy?.name === filters.person) &&
     (!filters.from || day >= filters.from) &&
     (!filters.to || day <= filters.to)
@@ -98,7 +142,8 @@ function coopsToVaccinate(batches, vaccinations, filters) {
     .sort((a, b) => b.pending - a.pending);
 }
 
-// Full vaccination, mortality and shift history across every batch, newest first.
+// Full vaccination, mortality, shift, feed and weight history across every batch,
+// newest first.
 // Tapping a record opens its details. `batches` are the current batches, used to
 // work out which coops still need vaccinating; tapping one of those coops opens
 // the vaccination form for it.
@@ -107,7 +152,7 @@ export default function Records({ batches, onOpenBatch, onUpdated }) {
   const [vaccinating, setVaccinating] = useState(null);
   // Bumped after a vaccination is added, to load the records again
   const [saves, setSaves] = useState(0);
-  const [view, setView] = useState('vaccinations');
+  const [view, setView] = useState(VIEWS[0].id);
   // The vaccinations view has two halves: what was given, and what is still due
   const [vaccinationView, setVaccinationView] = useState('history');
   const [records, setRecords] = useState(null);
@@ -118,9 +163,15 @@ export default function Records({ batches, onOpenBatch, onUpdated }) {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([getAllVaccinations(), getAllMortalities(), getAllShifts()])
-      .then(([vaccinations, mortalities, shifts]) => {
-        if (!cancelled) setRecords({ vaccinations, mortalities, shifts });
+    Promise.all([
+      getAllVaccinations(),
+      getAllMortalities(),
+      getAllShifts(),
+      getAllFeeds(),
+      getAllWeights(),
+    ])
+      .then(([vaccinations, mortalities, shifts, feeds, weights]) => {
+        if (!cancelled) setRecords({ vaccinations, mortalities, shifts, feeds, weights });
       })
       .catch((err) => {
         if (!cancelled) setError(err.message);
@@ -133,6 +184,18 @@ export default function Records({ batches, onOpenBatch, onUpdated }) {
   if (selected && view === 'shifts') {
     return (
       <ShiftDetail shift={selected} onBack={() => setSelected(null)} onOpenBatch={onOpenBatch} />
+    );
+  }
+
+  if (selected && ENTRY_KINDS[view]) {
+    return (
+      <EntryDetail
+        kind={ENTRY_KINDS[view]}
+        record={selected}
+        backLabel="All records"
+        onBack={() => setSelected(null)}
+        onOpenBatch={onOpenBatch}
+      />
     );
   }
 
@@ -152,7 +215,7 @@ export default function Records({ batches, onOpenBatch, onUpdated }) {
 
   // Filter choices come from the records themselves
   const everything = records
-    ? [...records.vaccinations, ...records.mortalities, ...records.shifts]
+    ? VIEWS.flatMap((v) => records[v.id])
     : [];
   const batchNames = new Map(
     everything.filter((r) => r.batch).map((r) => [r.batch._id, r.batch.batchName]),
@@ -176,7 +239,6 @@ export default function Records({ batches, onOpenBatch, onUpdated }) {
 
   const filtered = (kind) => records[kind].filter((r) => matches(kind, r, filters));
   const list = records && filtered(view);
-  const totalBirds = list?.reduce((sum, r) => sum + r.birds, 0) ?? 0;
   // The date and person filters describe records, not coops, so they do not apply here
   const toVaccinate = records ? coopsToVaccinate(batches, records.vaccinations, filters) : [];
   const showPending = view === 'vaccinations' && vaccinationView === 'pending';
@@ -249,6 +311,22 @@ export default function Records({ batches, onOpenBatch, onUpdated }) {
                 value={filters.coopName}
                 options={coopOptions}
                 onChange={setFilter('coopName')}
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor="filter-mortality-type">Mortality Type</label>
+              <Dropdown
+                id="filter-mortality-type"
+                value={filters.mortalityType}
+                options={[
+                  { value: '', label: 'All types' },
+                  ...RECORD_MORTALITY_TYPES.map((value) => ({
+                    value,
+                    label: MORTALITY_LABELS[value],
+                  })),
+                ]}
+                onChange={setFilter('mortalityType')}
               />
             </div>
 
@@ -440,8 +518,8 @@ export default function Records({ batches, onOpenBatch, onUpdated }) {
               <dd>{formatNumber(list.length)}</dd>
             </div>
             <div>
-              <dt>Birds {SUMMARY[view]}</dt>
-              <dd>{formatNumber(totalBirds)}</dd>
+              <dt>{SUMMARY[view](list)[0]}</dt>
+              <dd>{SUMMARY[view](list)[1]}</dd>
             </div>
           </dl>
 
@@ -454,16 +532,27 @@ export default function Records({ batches, onOpenBatch, onUpdated }) {
                     <li key={r._id}>
                       <button type="button" className="card record" onClick={() => setSelected(r)}>
                         <span className={`record-icon ${view}`} aria-hidden="true">
-                          {view === 'shifts' ? '⇄' : view === 'vaccinations' ? '+' : '−'}
+                          {ICONS[view]}
                         </span>
 
                         <span className="record-body">
                           <span className="record-top">
                             <strong>
-                              {view === 'vaccinations' ? r.vaccine : `${formatNumber(r.birds)} birds`}
+                              {view === 'vaccinations'
+                                ? r.vaccine
+                                : view === 'feeds'
+                                  ? `${formatKg(r.quantityKg)} · ${r.feedType}`
+                                  : view === 'weights'
+                                    ? `${formatWeight(r.avgWeightG)} avg`
+                                    : `${formatNumber(r.birds)} birds`}
                             </strong>
+                            {ENTRY_KINDS[view] && <small>{formatTime(r.createdAt)}</small>}
                             {view === 'vaccinations' && (
                               <small>{formatNumber(r.birds)} birds</small>
+                            )}
+                            {view === 'mortalities' && <small>{mortalityLabel(r)}</small>}
+                            {view === 'shifts' && r.mortality > 0 && (
+                              <small>{formatNumber(r.mortality)} shift mortality</small>
                             )}
                           </span>
                           <span className="record-place">
@@ -480,7 +569,9 @@ export default function Records({ batches, onOpenBatch, onUpdated }) {
                           <span className="record-meta">
                             {[
                               view === 'shifts' && (r.batch?.batchName ?? 'Deleted batch'),
-                              view !== 'vaccinations' && r.reason,
+                              r.reason,
+                              view === 'weights' &&
+                                `${formatNumber(r.birds)} birds weighed · ${formatKg(r.totalWeightKg)}`,
                               r.createdBy?.name && `By ${r.createdBy.name}`,
                             ]
                               .filter(Boolean)

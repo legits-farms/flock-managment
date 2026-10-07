@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchPhoto } from '../api.js';
-import { formatNumber } from '../flock.js';
+import { formatNumber, mortalityLabel } from '../flock.js';
 
 const formatDate = (value) =>
   new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -17,29 +17,13 @@ const formatDateTime = (value) =>
 // Everything saved with one vaccination or mortality record.
 // `kind` is 'vaccinations' or 'mortalities', matching the API path.
 export default function RecordDetail({ kind, record, onBack, onOpenBatch }) {
-  const [photo, setPhoto] = useState('');
-  const [photoFailed, setPhotoFailed] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    let url = '';
-    fetchPhoto(`/${kind}/${record._id}/photo`)
-      .then((objectUrl) => {
-        url = objectUrl;
-        if (cancelled) URL.revokeObjectURL(url);
-        else setPhoto(url);
-      })
-      .catch(() => {
-        if (!cancelled) setPhotoFailed(true);
-      });
-    return () => {
-      cancelled = true;
-      URL.revokeObjectURL(url);
-    };
-  }, [kind, record._id]);
-
   const vaccination = kind === 'vaccinations';
-  const { location } = record;
+  // Every photo of the record with where and when it was taken, the first one first
+  const photos = [record, ...(record.morePhotos ?? [])].map(({ location, capturedAt }, i) => ({
+    url: `/${kind}/${record._id}/photo${i === 0 ? '' : `/${i}`}`,
+    location,
+    capturedAt,
+  }));
 
   return (
     <div className="manage">
@@ -48,7 +32,7 @@ export default function RecordDetail({ kind, record, onBack, onOpenBatch }) {
       </button>
 
       <section className="card">
-        <h2 className="eyebrow">{vaccination ? 'Vaccination' : 'Mortality'}</h2>
+        <h2 className="eyebrow">{vaccination ? 'Vaccination' : mortalityLabel(record)}</h2>
         <div className="batch-head manage-head">
           <h3>{vaccination ? record.vaccine : `${formatNumber(record.birds)} birds`}</h3>
           <span className="badge">{record.coopName}</span>
@@ -93,10 +77,16 @@ export default function RecordDetail({ kind, record, onBack, onOpenBatch }) {
               )}
             </>
           ) : (
-            <div>
-              <dt>Reason</dt>
-              <dd>{record.reason}</dd>
-            </div>
+            <>
+              <div>
+                <dt>Type</dt>
+                <dd>{mortalityLabel(record)}</dd>
+              </div>
+              <div>
+                <dt>Reason</dt>
+                <dd>{record.reason}</dd>
+              </div>
+            </>
           )}
           <div>
             <dt>Entered By</dt>
@@ -109,40 +99,74 @@ export default function RecordDetail({ kind, record, onBack, onOpenBatch }) {
         </dl>
       </section>
 
-      <section className="card">
-        <h2 className="eyebrow">Photo</h2>
-        <div className="photo detail-photo">
-          {photo && <img src={photo} alt="Record, with time and location stamp" />}
-          {!photo && (
-            <p className="empty">{photoFailed ? 'Could not load the photo.' : 'Loading photo…'}</p>
-          )}
-        </div>
-
-        <dl className="batch-details detail">
-          <div>
-            <dt>Taken On</dt>
-            <dd>{formatDateTime(record.capturedAt)}</dd>
-          </div>
-          {location && (
-            <div>
-              <dt>Location</dt>
-              <dd>
-                {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
-                {typeof location.accuracy === 'number' && ` (±${Math.round(location.accuracy)} m)`}
-                <small>
-                  <a
-                    href={`https://www.google.com/maps?q=${location.lat},${location.lng}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Open in Maps
-                  </a>
-                </small>
-              </dd>
-            </div>
-          )}
-        </dl>
-      </section>
+      {photos.map((photo, i) => (
+        <section key={photo.url} className="card">
+          <h2 className="eyebrow">
+            {photos.length > 1 ? `Photo ${i + 1} of ${photos.length}` : 'Photo'}
+          </h2>
+          <RecordPhoto {...photo} />
+        </section>
+      ))}
     </div>
+  );
+}
+
+// One photo of a record, with when and where it was taken
+function RecordPhoto({ url, location, capturedAt }) {
+  const [photo, setPhoto] = useState('');
+  const [photoFailed, setPhotoFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl = '';
+    fetchPhoto(url)
+      .then((loaded) => {
+        objectUrl = loaded;
+        if (cancelled) URL.revokeObjectURL(objectUrl);
+        else setPhoto(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setPhotoFailed(true);
+      });
+    return () => {
+      cancelled = true;
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [url]);
+
+  return (
+    <>
+      <div className="photo detail-photo">
+        {photo && <img src={photo} alt="Record, with time and location stamp" />}
+        {!photo && (
+          <p className="empty">{photoFailed ? 'Could not load the photo.' : 'Loading photo…'}</p>
+        )}
+      </div>
+
+      <dl className="batch-details detail">
+        <div>
+          <dt>Taken On</dt>
+          <dd>{formatDateTime(capturedAt)}</dd>
+        </div>
+        {location && (
+          <div>
+            <dt>Location</dt>
+            <dd>
+              {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
+              {typeof location.accuracy === 'number' && ` (±${Math.round(location.accuracy)} m)`}
+              <small>
+                <a
+                  href={`https://www.google.com/maps?q=${location.lat},${location.lng}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open in Maps
+                </a>
+              </small>
+            </dd>
+          </div>
+        )}
+      </dl>
+    </>
   );
 }
