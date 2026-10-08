@@ -254,6 +254,106 @@ export const VACCINATION_SCHEDULE = [
   { when: '17th Week', vaccine: 'ND+IB Multi killed' },
 ];
 
+// Tells apart the entries of the vaccine list: the same vaccine is given at several ages
+export const vaccineKey = ({ vaccine, when }) => `${vaccine}|${when}`.toLowerCase();
+
+// The age in days a schedule entry falls on, read from its wording: "Day old" is
+// 0, "5th Day" 5, "9th Week" 63 and "15.3th Week" 15 weeks and 3 days. null when
+// the wording gives no age, as a hand-added vaccine's may not.
+export function scheduleDay(when) {
+  const text = (when ?? '').trim().toLowerCase();
+  if (/^day\s*old$/.test(text)) return 0;
+  const match = /^(\d+)(?:\.(\d+))?\s*(?:st|nd|rd|th)?\s*(day|week)s?$/.exec(text);
+  if (!match) return null;
+  return match[3] === 'week' ? Number(match[1]) * 7 + Number(match[2] ?? 0) : Number(match[1]);
+}
+
+// Where one batch stands on the vaccination `schedule` ([{ vaccine, when }]),
+// going by its `vaccinations` records. One row per entry that has an age, oldest
+// first: { vaccine, when, day, status, late, pending }.
+//   status  – 'done', 'due' (the birds are old enough and some have not had it),
+//             'upcoming', or 'optional' for an "if needed" entry not given
+//   late    – days the birds are past the entry's age (negative while upcoming)
+//   pending – [{ coop, birds }] still to be given it, out of `coops`
+// Vaccines due before the batch arrived are left out: the birds came with those.
+// A vaccine follows the birds when they are shifted, so a coop counts as done
+// once the batch as a whole has had enough doses for its live birds.
+export function vaccinationStatus(batch, schedule, vaccinations, coops = batch.coops ?? []) {
+  const live = (batch.coops ?? []).filter((coop) => coopLive(coop) > 0);
+  const here = coops.filter((coop) => coopLive(coop) > 0);
+  if (here.length === 0) return [];
+
+  const age = batchAgeDays(batch);
+  const ageAtEntry = batch.age * (batch.ageUnit === 'weeks' ? 7 : 1);
+  const own = vaccinations.filter((record) => (record.batch?._id ?? record.batch) === batch._id);
+  const batchLive = live.reduce((sum, coop) => sum + coopLive(coop), 0);
+
+  return schedule
+    .map((entry) => ({ ...entry, day: scheduleDay(entry.when) }))
+    .filter((entry) => entry.day !== null && entry.day >= ageAtEntry)
+    .sort((a, b) => a.day - b.day)
+    .map((entry) => {
+      const given = own.filter(
+        (record) =>
+          vaccineKey({ vaccine: record.vaccine, when: record.schedule ?? '' }) === vaccineKey(entry),
+      );
+      const doses = (list) => list.reduce((sum, record) => sum + record.birds, 0);
+      const batchShort = Math.max(0, batchLive - doses(given));
+      const pending = here
+        .map((coop) => ({
+          coop,
+          birds: Math.min(
+            coopLive(coop) - doses(given.filter((record) => record.coopId === coop._id)),
+            batchShort,
+          ),
+        }))
+        .filter(({ birds }) => birds > 0);
+
+      const late = age - entry.day;
+      const status =
+        pending.length === 0
+          ? 'done'
+          : /if needed/i.test(entry.vaccine)
+            ? 'optional'
+            : late >= 0
+              ? 'due'
+              : 'upcoming';
+      return { vaccine: entry.vaccine, when: entry.when, day: entry.day, status, late, pending };
+    });
+}
+
+// The vaccines the birds of the given { batch, coop } pairs are old enough for
+// but have not all had, earliest first, as "Lasota (5th Day)"
+export function dueVaccineNames(entries, schedule, vaccinations) {
+  const batches = [...new Map(entries.map(({ batch }) => [batch._id, batch])).values()];
+  const due = batches.flatMap((batch) =>
+    vaccinationStatus(
+      batch,
+      schedule,
+      vaccinations,
+      entries.filter((entry) => entry.batch._id === batch._id).map((entry) => entry.coop),
+    ).filter((row) => row.status === 'due'),
+  );
+  return [
+    ...new Set(due.sort((a, b) => a.day - b.day).map((row) => `${row.vaccine} (${row.when})`)),
+  ];
+}
+
+// Every vaccine some birds are old enough for but have not had, across all the
+// batches, earliest in the schedule first: [{ vaccine, when, coops: [{ batch, coop, birds }] }]
+export function vaccinesDue(batches, schedule, vaccinations) {
+  const due = new Map();
+  for (const batch of batches) {
+    for (const row of vaccinationStatus(batch, schedule, vaccinations)) {
+      if (row.status !== 'due') continue;
+      const key = vaccineKey(row);
+      if (!due.has(key)) due.set(key, { vaccine: row.vaccine, when: row.when, day: row.day, coops: [] });
+      due.get(key).coops.push(...row.pending.map((entry) => ({ batch, ...entry })));
+    }
+  }
+  return [...due.values()].sort((a, b) => a.day - b.day);
+}
+
 // Birds in the batch that have had at least one vaccine. The same birds get
 // several vaccines over time, so per coop this takes the best-covered vaccine
 // (doses of one vaccine add up across rounds) and never more than the live birds.

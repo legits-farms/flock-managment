@@ -5,16 +5,19 @@ import {
   broodingAge,
   broodingDue,
   coopLive,
+  dueVaccineNames,
   feedStatus,
   formatNumber,
   formatWeight,
   vaccinatedBirds,
 } from '../flock.js';
 import useBatchRecords from '../useBatchRecords.js';
+import useVaccineSchedule from '../useVaccineSchedule.js';
 import BatchRecords from './BatchRecords.jsx';
 import EntryDetail from './EntryDetail.jsx';
 import RecordForm from './RecordForm.jsx';
 import SoldList from './SoldList.jsx';
+import VaccinationSchedule from './VaccinationSchedule.jsx';
 
 const VIEWS = [
   { id: 'vaccinations', label: 'Vaccinations' },
@@ -50,6 +53,9 @@ export default function CoopPage({ group, onBack, onOpenBatch, onUpdated }) {
   const mortality = coops.reduce((sum, coop) => sum + (coop.mortality ?? 0), 0);
   // null until the vaccination records have loaded
   const vaccinated = records ? vaccinatedBirds({ coops }, records.vaccinations) : null;
+  // The vaccines the birds here are old enough for but have not all had
+  const schedule = useVaccineSchedule();
+  const dueVaccines = records ? dueVaccineNames(entries, schedule, records.vaccinations) : [];
 
   // This coop's own feed and weight entries, newest first; null until loaded.
   // The batches' records cover their other coops too.
@@ -164,6 +170,10 @@ export default function CoopPage({ group, onBack, onOpenBatch, onUpdated }) {
           </div>
         </dl>
 
+        {dueVaccines.length > 0 && (
+          <p className="notice danger">Vaccination not done: {dueVaccines.join(', ')}</p>
+        )}
+
         {/* Nothing left to say once the day's feeds are done */}
         {feeding && live > 0 && feeding.count < FEEDS_PER_DAY && (
           <p className={feeding.due ? 'feed-note due' : 'feed-note'}>{feeding.text}</p>
@@ -209,6 +219,10 @@ export default function CoopPage({ group, onBack, onOpenBatch, onUpdated }) {
         >
           ＋ Register Mortality
         </button>
+      )}
+
+      {view === 'vaccinations' && (
+        <VaccinationSchedule entries={entries} vaccinations={records?.vaccinations} />
       )}
 
       {view === 'sold' ? (

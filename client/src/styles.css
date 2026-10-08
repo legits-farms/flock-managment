@@ -970,6 +970,37 @@ dt {
   border-bottom: 1px solid var(--line);
 }
 
+/* Under the figures of a coop or batch: the vaccines the birds are old enough for but have not had */
+.notice.danger {
+  background: #fdecea;
+  color: var(--red);
+}
+
+.notice.danger + * {
+  margin-top: 14px;
+}
+
+/* Vaccination schedule: whether each vaccine was given */
+.recent-list li > .status-chip {
+  padding: 4px 10px;
+  border-radius: 30px;
+  background: var(--cream-2);
+  color: var(--brown-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.recent-list li > .status-chip.done {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.recent-list li > .status-chip.due {
+  background: #fdecea;
+  color: var(--red);
+}
+
 /* A button that opens a file or camera picker: the real input is kept out of sight */
 .file-pick {
   display: flex;

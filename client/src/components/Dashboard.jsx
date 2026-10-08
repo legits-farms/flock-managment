@@ -11,6 +11,7 @@ import {
 import LoadStatus from './LoadStatus.jsx';
 import MortalityChart from './MortalityChart.jsx';
 import RecentRecords from './RecentRecords.jsx';
+import VaccinesDue from './VaccinesDue.jsx';
 
 const formatDate = (value) =>
   new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -198,6 +199,8 @@ export default function Dashboard({
           </span>
         </button>
       ))}
+
+      <VaccinesDue batches={batches} onAdd={() => onAction('vaccination')} />
 
       <MortalityChart />
 

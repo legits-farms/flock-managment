@@ -11,6 +11,7 @@ import {
   broodingDue,
   coopsForBatch,
   coopsOnFarm,
+  dueVaccineNames,
   feedCost,
   formatKg,
   formatNumber,
@@ -22,11 +23,13 @@ import {
   vaccinatedBirds,
 } from '../flock.js';
 import useBatchRecords from '../useBatchRecords.js';
+import useVaccineSchedule from '../useVaccineSchedule.js';
 import BatchFeed from './BatchFeed.jsx';
 import BatchRecords from './BatchRecords.jsx';
 import Dropdown from './Dropdown.jsx';
 import OptionSelect from './OptionSelect.jsx';
 import SoldList from './SoldList.jsx';
+import VaccinationSchedule from './VaccinationSchedule.jsx';
 
 const formatDate = (value) =>
   new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -92,6 +95,15 @@ export default function ManageFlock({
   const live = liveBirds(batch);
   // null until the batch's vaccination records have loaded
   const vaccinated = records ? vaccinatedBirds(batch, records.vaccinations) : null;
+  // The vaccines the batch is old enough for but has not all had
+  const schedule = useVaccineSchedule();
+  const dueVaccines = records
+    ? dueVaccineNames(
+        batch.coops.map((coop) => ({ batch, coop })),
+        schedule,
+        records.vaccinations,
+      )
+    : [];
 
   async function run(action) {
     setBusy(true);
@@ -164,6 +176,10 @@ export default function ManageFlock({
             </dd>
           </div>
         </dl>
+
+        {dueVaccines.length > 0 && (
+          <p className="notice danger">Vaccination not done: {dueVaccines.join(', ')}</p>
+        )}
 
         {/* What the batch has eaten so far; the Feed tab below has the details */}
         <button type="button" className="feed-strip" onClick={() => setView('feed')}>
@@ -270,6 +286,14 @@ export default function ManageFlock({
         ) : (
           <p className="status">{recordsError || 'Loading…'}</p>
         ))}
+
+      {view === 'vaccinations' && (
+        <VaccinationSchedule
+          entries={batch.coops.map((coop) => ({ batch, coop }))}
+          vaccinations={records?.vaccinations}
+          showCoop
+        />
+      )}
 
       {view === 'sold' && (
         <SoldList

@@ -18,6 +18,7 @@ import {
   formatNumber,
   formatWeight,
   placeType,
+  vaccineKey,
 } from '../flock.js';
 import Dropdown from './Dropdown.jsx';
 import OptionSelect from './OptionSelect.jsx';
@@ -34,9 +35,6 @@ const coopsOn = (batch, farm) =>
   farm === null ? [] : batch.coops.filter((coop) => sameName(coopFarm(batch, coop), farm));
 
 const batchesOn = (batches, farm) => batches.filter((batch) => coopsOn(batch, farm).length > 0);
-
-// Tells apart the entries of the vaccine list: the same vaccine is given at several ages
-const vaccineKey = ({ vaccine, when }) => `${vaccine}|${when}`.toLowerCase();
 
 // With a single choice there is nothing to pick
 const only = (list) => (list.length === 1 ? list[0] : null);
