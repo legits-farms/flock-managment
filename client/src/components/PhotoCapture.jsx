@@ -52,10 +52,10 @@ function drawStampedPhoto(video, location, takenAt) {
   return canvas.toDataURL('image/jpeg', 0.8);
 }
 
-// Live-camera-only photo field, for up to MAX_PHOTOS photos. There is
+// Live-camera-only photo field, for up to `max` photos. There is
 // deliberately no file input, so a photo cannot be picked from the gallery.
 // `value` is a list of { photo, location, capturedAt }, in the order taken.
-export default function PhotoCapture({ value, onChange }) {
+export default function PhotoCapture({ value, onChange, max = MAX_PHOTOS }) {
   const [open, setOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const [location, setLocation] = useState(null);
@@ -151,12 +151,12 @@ export default function PhotoCapture({ value, onChange }) {
         </ul>
       )}
 
-      {value.length < MAX_PHOTOS ? (
+      {value.length < max ? (
         <button type="button" className="secondary" onClick={() => setOpen(true)}>
           {value.length === 0 ? 'Take Live Photo' : '＋ Add Another Photo'}
         </button>
       ) : (
-        <p className="empty">Up to {MAX_PHOTOS} photos per record.</p>
+        <p className="empty">Up to {max} photos here.</p>
       )}
 
       {open && (

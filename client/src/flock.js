@@ -8,6 +8,8 @@ export const formatWeight = (grams) =>
 
 export const formatKg = (kg) => `${formatNumber(Number(Number(kg).toFixed(2)))} kg`;
 
+export const formatRupees = (amount) => `₹${formatNumber(Number(Number(amount).toFixed(2)))}`;
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 const calendarDay = (date) => Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
 
@@ -39,6 +41,46 @@ export function broodingAge(coopName, entries) {
   if (ages.size !== 1) return null;
   const [age] = ages;
   return `${formatNumber(age)} ${age === 1 ? 'day' : 'days'}`;
+}
+
+// The feeds birds move through as they grow, in that order
+export const FEED_TYPES = ['Pre-Starter', 'Starter', 'Grower', 'Finisher'];
+
+// What the given feed entries come to: { kg, cost, unpricedKg, types }. Feed is
+// priced at the average price per kg its feed type was bought at; `unpricedKg` is
+// the feed of types never bought, which the cost leaves out. `types` splits it by
+// feed type, most eaten first: [{ feedType, kg, cost }], cost null when never bought.
+export function feedCost(feeds, purchases) {
+  const bought = new Map();
+  for (const purchase of purchases) {
+    const key = purchase.feedType.trim().toLowerCase();
+    const type = bought.get(key) ?? { kg: 0, amount: 0 };
+    bought.set(key, {
+      kg: type.kg + purchase.quantityKg,
+      amount: type.amount + purchase.amount,
+    });
+  }
+
+  const types = new Map();
+  for (const feed of feeds) {
+    const key = feed.feedType.trim().toLowerCase();
+    const price = bought.get(key);
+    const type = types.get(key) ?? { feedType: feed.feedType, kg: 0, cost: price ? 0 : null };
+    types.set(key, {
+      ...type,
+      kg: type.kg + feed.quantityKg,
+      cost: price ? type.cost + feed.quantityKg * (price.amount / price.kg) : null,
+    });
+  }
+
+  const all = [...types.values()].sort((a, b) => b.kg - a.kg);
+  const sum = (list, field) => list.reduce((total, type) => total + type[field], 0);
+  return {
+    kg: sum(all, 'kg'),
+    cost: sum(all.filter((type) => type.cost !== null), 'cost'),
+    unpricedKg: sum(all.filter((type) => type.cost === null), 'kg'),
+    types: all,
+  };
 }
 
 // Birds are fed this many times a day, the next feed about this many hours after the last
@@ -115,9 +157,13 @@ export const placedBirds = (batch) => batch.numberOfBirds - batch.boxMortality;
 export const totalMortality = (batch) =>
   batch.boxMortality + (batch.coops ?? []).reduce((sum, coop) => sum + (coop.mortality ?? 0), 0);
 
-export const liveBirds = (batch) => batch.numberOfBirds - totalMortality(batch);
+// Birds sold out of the batch's coops
+export const totalSold = (batch) =>
+  (batch.coops ?? []).reduce((sum, coop) => sum + (coop.sold ?? 0), 0);
 
-export const coopLive = (coop) => coop.birds - (coop.mortality ?? 0);
+export const liveBirds = (batch) => batch.numberOfBirds - totalMortality(batch) - totalSold(batch);
+
+export const coopLive = (coop) => coop.birds - (coop.mortality ?? 0) - (coop.sold ?? 0);
 
 export const allocatedBirds = (batch) =>
   (batch.coops ?? []).reduce((sum, coop) => sum + coop.birds, 0);
@@ -132,6 +178,51 @@ export const photoCount = (record) => 1 + (record.morePhotos?.length ?? 0);
 export const MORTALITY_LABELS = { box: 'Box', shift: 'Shift', brooding: 'Brooding', coop: 'Coop' };
 export const RECORD_MORTALITY_TYPES = ['shift', 'brooding', 'coop'];
 
+// How much of a sale's bill has been paid, and how
+export const PAYMENT_STATUS_LABELS = { unpaid: 'Unpaid', partial: 'Partly Paid', paid: 'Paid' };
+export const PAYMENT_MODE_LABELS = { cash: 'Cash', upi: 'UPI', bank: 'Bank Transfer' };
+
+// Whose boxes sold birds leave in
+export const BOX_MODE_LABELS = {
+  own: 'Brought their own',
+  borrow: 'Borrowed from us',
+  buy: 'Bought from us',
+};
+
+// Weight of the birds in one weighed set of a sale: the loaded boxes less the empty ones
+export const setWeightKg = (set) =>
+  Number(
+    Math.max(0, (Number(set.boxWeightGross) || 0) - (Number(set.boxWeightEmpty) || 0)).toFixed(3),
+  );
+
+// What one weighed set of a saved sale was billed at: its weight at the sale's
+// rate per kg, or at its gender's rate when the set has one
+export const saleSetBill = (sale, set) =>
+  set.weightKg *
+  (set.gender === 'female'
+    ? sale.femaleRate
+    : set.gender === 'male'
+      ? sale.maleRate
+      : sale.ratePerKg);
+
+// What a sale comes to: the weight of the birds at the rate per kg, plus any
+// boxes bought. Matches the sums in server/src/routes/sales.js.
+export function saleTotals({ sets, ratePerKg, boxMode, boxQty, boxRate }) {
+  const birds = sets.reduce((sum, set) => sum + set.birds, 0);
+  const weightKg = Number(sets.reduce((sum, set) => sum + setWeightKg(set), 0).toFixed(3));
+  const birdBill = Number((weightKg * (Number(ratePerKg) || 0)).toFixed(2));
+  const boxBill =
+    boxMode === 'buy' ? Number(((Number(boxQty) || 0) * (Number(boxRate) || 0)).toFixed(2)) : 0;
+  return {
+    birds,
+    weightKg,
+    avgKg: birds > 0 ? weightKg / birds : 0,
+    birdBill,
+    boxBill,
+    amount: Number((birdBill + boxBill).toFixed(2)),
+  };
+}
+
 // A brooding house or an ordinary coop, going by the coop's name
 export const placeType = (coopName) =>
   /^brooding\b/i.test((coopName ?? '').trim()) ? 'brooding' : 'coop';
@@ -140,6 +231,28 @@ export const placeType = (coopName) =>
 export const mortalityType = (record) => record.type ?? placeType(record.coopName);
 
 export const mortalityLabel = (record) => `${MORTALITY_LABELS[mortalityType(record)]} mortality`;
+
+// The vaccination schedule: what is given, and the age of the birds it is given at
+export const VACCINATION_SCHEDULE = [
+  { when: 'Day old', vaccine: 'Mareks (SB1+HVT)' },
+  { when: '5th Day', vaccine: 'Lasota' },
+  { when: '12th Day', vaccine: 'IBD Plus' },
+  { when: '22nd Day', vaccine: 'IBD Plus' },
+  { when: '28th Day', vaccine: 'IB+Lasota Booster' },
+  { when: '32nd Day', vaccine: 'Debeaking' },
+  { when: '35th Day', vaccine: 'Fowl Pox' },
+  { when: '43rd Day', vaccine: 'VvND K' },
+  { when: '56th Day', vaccine: 'Lasota Booster' },
+  { when: '9th Week', vaccine: 'ND VISA K' },
+  { when: '10th Week', vaccine: 'Deworming' },
+  { when: '11th Week', vaccine: 'R2B' },
+  { when: '12th Week', vaccine: 'IB Live' },
+  { when: '13th Week', vaccine: 'Debeaking (If needed)' },
+  { when: '14th Week', vaccine: 'Deworming' },
+  { when: '15.3th Week', vaccine: 'VvND K' },
+  { when: '16.3th Week', vaccine: 'Lasota' },
+  { when: '17th Week', vaccine: 'ND+IB Multi killed' },
+];
 
 // Birds in the batch that have had at least one vaccine. The same birds get
 // several vaccines over time, so per coop this takes the best-covered vaccine

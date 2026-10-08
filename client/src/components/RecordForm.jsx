@@ -1,8 +1,18 @@
-import { useState } from 'react';
-import { createFeed, createMortality, createVaccination, createWeight } from '../api.js';
+import { useEffect, useState } from 'react';
 import {
+  addFeedType,
+  addVaccine,
+  createFeed,
+  createMortality,
+  createVaccination,
+  createWeight,
+  getOptions,
+} from '../api.js';
+import {
+  FEED_TYPES,
   MORTALITY_LABELS,
   RECORD_MORTALITY_TYPES,
+  VACCINATION_SCHEDULE,
   coopFarm,
   coopLive,
   formatNumber,
@@ -10,6 +20,7 @@ import {
   placeType,
 } from '../flock.js';
 import Dropdown from './Dropdown.jsx';
+import OptionSelect from './OptionSelect.jsx';
 import PhotoCapture, { evidencePayload } from './PhotoCapture.jsx';
 
 // YYYY-MM-DD in local time, the format <input type="date"> expects
@@ -23,6 +34,9 @@ const coopsOn = (batch, farm) =>
   farm === null ? [] : batch.coops.filter((coop) => sameName(coopFarm(batch, coop), farm));
 
 const batchesOn = (batches, farm) => batches.filter((batch) => coopsOn(batch, farm).length > 0);
+
+// Tells apart the entries of the vaccine list: the same vaccine is given at several ages
+const vaccineKey = ({ vaccine, when }) => `${vaccine}|${when}`.toLowerCase();
 
 // With a single choice there is nothing to pick
 const only = (list) => (list.length === 1 ? list[0] : null);
@@ -52,6 +66,12 @@ const FORMS = {
     save: createWeight,
   },
 };
+
+// Feed is weighed out in kilos or, for a small flock, in grams
+const FEED_UNITS = [
+  { value: 'kg', label: 'KG' },
+  { value: 'g', label: 'GM' },
+];
 
 // Average weight per bird, in grams, or null until both numbers are filled in
 function averageGrams(totalKg, birds) {
@@ -90,10 +110,51 @@ export default function RecordForm({
   const [birds, setBirds] = useState('');
   const [reason, setReason] = useState('');
   const [date, setDate] = useState(today);
-  const [vaccine, setVaccine] = useState('');
+  // vaccineKey of the chosen entry of the vaccine list, or '' until one is picked
+  const [scheduled, setScheduled] = useState('');
+  // Vaccines and feed types added by hand, listed after the standard ones
+  const [addedVaccines, setAddedVaccines] = useState([]);
+  const [addedFeedTypes, setAddedFeedTypes] = useState([]);
+
+  useEffect(() => {
+    if (type !== 'vaccination' && type !== 'feed') return;
+    getOptions()
+      .then((options) => {
+        setAddedVaccines(options.vaccines ?? []);
+        setAddedFeedTypes(options.feedTypes ?? []);
+      })
+      // The standard ones are still there to pick from
+      .catch(() => {});
+  }, [type]);
+
+  const feedTypes = [...FEED_TYPES, ...addedFeedTypes];
+
+  async function saveFeedType(name) {
+    if (feedTypes.some((other) => sameName(other, name))) {
+      throw new Error(`Feed type "${name}" is already on the list`);
+    }
+    const options = await addFeedType(name);
+    setAddedFeedTypes(options.feedTypes);
+  }
+
+  const vaccines = [...VACCINATION_SCHEDULE, ...addedVaccines];
+  const given = vaccines.find((entry) => vaccineKey(entry) === scheduled);
+
+  async function saveVaccine(name, when) {
+    const entry = { vaccine: name, when };
+    if (vaccines.some((other) => vaccineKey(other) === vaccineKey(entry))) {
+      throw new Error(`Vaccine "${name}" is already on the list`);
+    }
+    const options = await addVaccine(name, when);
+    setAddedVaccines(options.vaccines);
+    return vaccineKey(entry);
+  }
   const [remarks, setRemarks] = useState('');
   const [feedType, setFeedType] = useState('');
-  const [quantityKg, setQuantityKg] = useState('');
+  const [feedCompany, setFeedCompany] = useState('');
+  // Feed quantity as typed, in the unit picked next to it
+  const [quantity, setQuantity] = useState('');
+  const [quantityUnit, setQuantityUnit] = useState('kg');
   const [totalWeightKg, setTotalWeightKg] = useState('');
   const [evidence, setEvidence] = useState([]);
   const [submitting, setSubmitting] = useState(false);
@@ -126,6 +187,8 @@ export default function RecordForm({
     e.preventDefault();
     if (!batch) return setError('Please select a farm and a batch.');
     if (!coop) return setError('Please select a coop.');
+    if (type === 'vaccination' && !given) return setError('Please select the vaccine.');
+    if (type === 'feed' && !feedType) return setError('Please select the feed type.');
     if (config.birdsLabel && Number(birds) > coopLive(coop)) {
       return setError(`Only ${formatNumber(coopLive(coop))} live birds are in ${coop.name}.`);
     }
@@ -136,8 +199,20 @@ export default function RecordForm({
     try {
       const details = {
         mortality: { birds: Number(birds), type: mortalityType, reason },
-        vaccination: { birds: Number(birds), date, vaccine, remarks },
-        feed: { date, feedType, quantityKg: Number(quantityKg), remarks },
+        vaccination: {
+          birds: Number(birds),
+          date,
+          vaccine: given?.vaccine,
+          schedule: given?.when,
+          remarks,
+        },
+        feed: {
+          date,
+          feedType,
+          feedCompany,
+          quantityKg: quantityUnit === 'g' ? Number(quantity) / 1000 : Number(quantity),
+          remarks,
+        },
         weight: { birds: Number(birds), date, totalWeightKg: Number(totalWeightKg), remarks },
       }[type];
       const saved = await config.save({
@@ -248,44 +323,73 @@ export default function RecordForm({
         )}
 
         {type === 'vaccination' && (
-          <label className="field">
-            <span>Vaccine</span>
-            <input
-              type="text"
-              value={vaccine}
-              onChange={(e) => setVaccine(e.target.value)}
-              placeholder="e.g. Lasota"
-              required
+          <div className="field">
+            <label htmlFor="record-vaccine">Vaccine</label>
+            <OptionSelect
+              id="record-vaccine"
+              value={scheduled}
+              options={vaccines.map((entry) => ({
+                value: vaccineKey(entry),
+                label: entry.vaccine,
+                note: entry.when,
+              }))}
+              onChange={setScheduled}
+              placeholder="Select vaccine"
+              addLabel="Add new vaccine"
+              noteLabel="Day / week (e.g. 18th Week)"
+              onAdd={saveVaccine}
             />
-          </label>
+          </div>
         )}
 
         {type === 'feed' && (
           <>
+            <div className="field">
+              <label htmlFor="record-feed-type">Feed Type</label>
+              <OptionSelect
+                id="record-feed-type"
+                value={feedType}
+                names={feedTypes}
+                onChange={setFeedType}
+                placeholder="Select feed type"
+                addLabel="Add feed type"
+                onAdd={saveFeedType}
+              />
+            </div>
+
             <label className="field">
-              <span>Feed Type</span>
+              <span>Feed Company</span>
               <input
                 type="text"
-                value={feedType}
-                onChange={(e) => setFeedType(e.target.value)}
-                placeholder="e.g. Starter"
+                value={feedCompany}
+                onChange={(e) => setFeedCompany(e.target.value)}
+                placeholder="Company the feed is from"
                 required
               />
             </label>
 
-            <label className="field">
-              <span>Feed Quantity (kg)</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                min="0.001"
-                step="any"
-                value={quantityKg}
-                onChange={(e) => setQuantityKg(e.target.value)}
-                placeholder="0"
-                required
-              />
-            </label>
+            <div className="field">
+              <label htmlFor="record-feed-quantity">Feed Quantity</label>
+              <div className="input-group">
+                <input
+                  id="record-feed-quantity"
+                  type="number"
+                  inputMode="decimal"
+                  min={quantityUnit === 'g' ? '1' : '0.001'}
+                  step="any"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  placeholder="0"
+                  required
+                />
+                <Dropdown
+                  value={quantityUnit}
+                  options={FEED_UNITS}
+                  onChange={setQuantityUnit}
+                  ariaLabel="Feed quantity unit"
+                />
+              </div>
+            </div>
           </>
         )}
 

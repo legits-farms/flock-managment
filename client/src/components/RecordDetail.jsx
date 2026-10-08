@@ -61,6 +61,12 @@ export default function RecordDetail({ kind, record, onBack, onOpenBatch }) {
           </div>
           {vaccination ? (
             <>
+              {record.schedule && (
+                <div>
+                  <dt>Schedule</dt>
+                  <dd>{record.schedule}</dd>
+                </div>
+              )}
               <div>
                 <dt>Date</dt>
                 <dd>{formatDate(record.date)}</dd>

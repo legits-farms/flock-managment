@@ -5,7 +5,8 @@ const MAX_MENU_HEIGHT = 260;
 // Room taken by the fixed tab bar at the bottom of the screen
 const BOTTOM_BAR = 80;
 
-// Themed replacement for a native <select>. Options are { value, label }.
+// Themed replacement for a native <select>. Options are { value, label }, with
+// an optional `note` shown on the right of the label.
 export default function Dropdown({ id, value, options, onChange, placeholder, ariaLabel }) {
   const [open, setOpen] = useState(false);
   // Open upwards when the field is too close to the bottom of the screen
@@ -58,6 +59,7 @@ export default function Dropdown({ id, value, options, onChange, placeholder, ar
         <span className={selected ? '' : 'placeholder'}>
           {selected ? selected.label : placeholder}
         </span>
+        {selected?.note && <span className="dropdown-note">{selected.note}</span>}
         <span className="dropdown-caret" aria-hidden="true" />
       </button>
 
@@ -71,6 +73,7 @@ export default function Dropdown({ id, value, options, onChange, placeholder, ar
                 onClick={() => choose(option.value)}
               >
                 {option.label}
+                {option.note && <span className="dropdown-note">{option.note}</span>}
               </button>
             </li>
           ))}

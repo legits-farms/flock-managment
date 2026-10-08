@@ -65,7 +65,9 @@ async function moveLegacyCoops() {
   }
 }
 
-// { farms: [names], coops: { <farm name>: [coop names] } }
+// { farms: [names], coops: { <farm name>: [coop names] }, vaccines: [{ vaccine, when }],
+// feedTypes: [names] }. The vaccines and feed types are only those added by hand; the
+// standard ones are in the app itself.
 export async function listOptions() {
   const farms = await farmNames();
   await moveLegacyCoops();
@@ -90,8 +92,13 @@ export async function listOptions() {
     coops = await find();
   }
 
+  const vaccines = await Option.find({ kind: 'vaccine' }).sort({ _id: 1 });
+  const feedTypes = await Option.find({ kind: 'feedType' }).sort({ _id: 1 });
+
   return {
     farms,
+    vaccines: vaccines.map((option) => ({ vaccine: option.name, when: option.schedule ?? '' })),
+    feedTypes: feedTypes.map((option) => option.name),
     coops: Object.fromEntries(
       farms.map((farm) => [
         farm,
@@ -106,6 +113,31 @@ function parseName(rawName, label) {
   if (!name) throw badRequest(`${label} name is required`);
   if (name.length > 40) throw badRequest(`${label} name is too long`);
   return name;
+}
+
+export async function addFeedType(rawName, addedBy) {
+  const name = parseName(rawName, 'Feed type');
+  if (await Option.exists({ kind: 'feedType', key: keyOf(name) })) {
+    throw badRequest(`Feed type "${name}" is already on the list`);
+  }
+
+  await Option.create({ kind: 'feedType', name, key: keyOf(name), addedBy });
+  return listOptions();
+}
+
+// `rawSchedule` is the age the vaccine is given at and may be left empty
+export async function addVaccine(rawName, rawSchedule, addedBy) {
+  const name = parseName(rawName, 'Vaccine');
+  const schedule = String(rawSchedule ?? '').trim();
+  if (schedule.length > 40) throw badRequest('Day / week is too long');
+
+  const key = `${keyOf(name)}|${keyOf(schedule)}`;
+  if (await Option.exists({ kind: 'vaccine', key })) {
+    throw badRequest(`Vaccine "${name}" is already on the list`);
+  }
+
+  await Option.create({ kind: 'vaccine', name, schedule, key, addedBy });
+  return listOptions();
 }
 
 // Both resolve to the full, updated lists

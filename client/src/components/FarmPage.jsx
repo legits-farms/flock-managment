@@ -85,8 +85,8 @@ export default function FarmPage({
             <dd>{formatNumber(mortality)}</dd>
           </div>
           <div>
-            <dt>Vaccinated</dt>
-            <dd>{vaccinated === null ? '…' : formatNumber(vaccinated)}</dd>
+            <dt>Sold Birds</dt>
+            <dd>{formatNumber(entries.reduce((sum, { coop }) => sum + (coop.sold ?? 0), 0))}</dd>
           </div>
           <div>
             <dt>Not Vaccinated</dt>

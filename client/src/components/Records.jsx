@@ -2,17 +2,20 @@ import { useEffect, useState } from 'react';
 import {
   getAllFeeds,
   getAllMortalities,
+  getAllSales,
   getAllShifts,
   getAllVaccinations,
   getAllWeights,
 } from '../api.js';
 import {
   MORTALITY_LABELS,
+  PAYMENT_STATUS_LABELS,
   RECORD_MORTALITY_TYPES,
   coopGroups,
   coopLive,
   formatKg,
   formatNumber,
+  formatRupees,
   formatWeight,
   mortalityLabel,
   mortalityType,
@@ -22,6 +25,7 @@ import Dropdown from './Dropdown.jsx';
 import EntryDetail from './EntryDetail.jsx';
 import RecordDetail from './RecordDetail.jsx';
 import RecordForm from './RecordForm.jsx';
+import SaleDetail from './SaleDetail.jsx';
 import ShiftDetail from './ShiftDetail.jsx';
 
 // View ids match the API path and the RecordDetail `kind`
@@ -31,12 +35,13 @@ const VIEWS = [
   { id: 'weights', label: 'Weight' },
   { id: 'vaccinations', label: 'Vaccinations' },
   { id: 'shifts', label: 'Shifts' },
+  { id: 'sales', label: 'Sales' },
 ];
 
 // The EntryDetail `kind` of the views it shows
 const ENTRY_KINDS = { feeds: 'feed', weights: 'weight' };
 
-const ICONS = { vaccinations: '+', mortalities: '−', shifts: '⇄', feeds: '≡', weights: '⚖' };
+const ICONS = { vaccinations: '+', mortalities: '−', shifts: '⇄', sales: '₹', feeds: '≡', weights: '⚖' };
 
 const NO_FILTERS = { batchId: '', coopName: '', mortalityType: '', person: '', from: '', to: '' };
 
@@ -49,13 +54,20 @@ const dayOf = (value) => new Date(value).toLocaleDateString('en-CA');
 // Mortality is dated by when it was registered; everything else by the day given
 const recordDate = (kind, r) => (kind === 'mortalities' ? r.createdAt : r.date);
 
-// A shift involves two coops, the other records one
-const coopsOf = (r) => [r.coopName, r.fromCoopName, r.toCoopName].filter(Boolean);
+// A shift involves two coops and a sale one per set, the other records one
+const coopsOf = (r) =>
+  [r.coopName, r.fromCoopName, r.toCoopName, ...(r.sets ?? []).map((set) => set.coopName)].filter(
+    Boolean,
+  );
+
+// A sale can take birds from several batches, the other records are about one
+const batchesOf = (r) => [r.batch, ...(r.sets ?? []).map((set) => set.batch)].filter(Boolean);
 
 const EMPTY = {
   vaccinations: 'No vaccinations added yet.',
   mortalities: 'No mortality registered yet.',
   shifts: 'No birds shifted yet.',
+  sales: 'No birds sold yet.',
   feeds: 'No feed entered yet.',
   weights: 'No weight entered yet.',
 };
@@ -66,6 +78,7 @@ const SUMMARY = {
   vaccinations: (list) => ['Birds Vaccinated', formatNumber(birdsIn(list))],
   mortalities: (list) => ['Birds Lost', formatNumber(birdsIn(list))],
   shifts: (list) => ['Birds Shifted', formatNumber(birdsIn(list))],
+  sales: (list) => ['Sale Amount', formatRupees(list.reduce((sum, r) => sum + r.amount, 0))],
   feeds: (list) => ['Feed Given', formatKg(list.reduce((sum, r) => sum + r.quantityKg, 0))],
   weights: (list) => ['Latest Avg Weight', formatWeight(list[0].avgWeightG)],
 };
@@ -99,7 +112,7 @@ const unique = (values) => [...new Set(values.filter(Boolean))].sort((a, b) => a
 function matches(kind, r, filters) {
   const day = dayOf(recordDate(kind, r));
   return (
-    (!filters.batchId || r.batch?._id === filters.batchId) &&
+    (!filters.batchId || batchesOf(r).some((batch) => batch._id === filters.batchId)) &&
     (!filters.coopName || coopsOf(r).includes(filters.coopName)) &&
     // Only mortality records have a mortality type
     (!filters.mortalityType ||
@@ -142,7 +155,7 @@ function coopsToVaccinate(batches, vaccinations, filters) {
     .sort((a, b) => b.pending - a.pending);
 }
 
-// Full vaccination, mortality, shift, feed and weight history across every batch,
+// Full vaccination, mortality, shift, sale, feed and weight history across every batch,
 // newest first.
 // Tapping a record opens its details. `batches` are the current batches, used to
 // work out which coops still need vaccinating; tapping one of those coops opens
@@ -167,11 +180,12 @@ export default function Records({ batches, onOpenBatch, onUpdated }) {
       getAllVaccinations(),
       getAllMortalities(),
       getAllShifts(),
+      getAllSales(),
       getAllFeeds(),
       getAllWeights(),
     ])
-      .then(([vaccinations, mortalities, shifts, feeds, weights]) => {
-        if (!cancelled) setRecords({ vaccinations, mortalities, shifts, feeds, weights });
+      .then(([vaccinations, mortalities, shifts, sales, feeds, weights]) => {
+        if (!cancelled) setRecords({ vaccinations, mortalities, shifts, sales, feeds, weights });
       })
       .catch((err) => {
         if (!cancelled) setError(err.message);
@@ -185,6 +199,10 @@ export default function Records({ batches, onOpenBatch, onUpdated }) {
     return (
       <ShiftDetail shift={selected} onBack={() => setSelected(null)} onOpenBatch={onOpenBatch} />
     );
+  }
+
+  if (selected && view === 'sales') {
+    return <SaleDetail sale={selected} onBack={() => setSelected(null)} onOpenBatch={onOpenBatch} />;
   }
 
   if (selected && ENTRY_KINDS[view]) {
@@ -218,13 +236,15 @@ export default function Records({ batches, onOpenBatch, onUpdated }) {
     ? VIEWS.flatMap((v) => records[v.id])
     : [];
   const batchNames = new Map(
-    everything.filter((r) => r.batch).map((r) => [r.batch._id, r.batch.batchName]),
+    everything.flatMap(batchesOf).map((batch) => [batch._id, batch.batchName]),
   );
   const batchOptions = [
     { value: '', label: 'All batches' },
     ...[...batchNames].map(([value, label]) => ({ value, label })),
   ];
-  const inBatch = everything.filter((r) => !filters.batchId || r.batch?._id === filters.batchId);
+  const inBatch = everything.filter(
+    (r) => !filters.batchId || batchesOf(r).some((batch) => batch._id === filters.batchId),
+  );
   const coopOptions = [
     { value: '', label: 'All coops' },
     ...unique(inBatch.flatMap(coopsOf)).map((name) => ({ value: name, label: name })),
@@ -551,6 +571,7 @@ export default function Records({ batches, onOpenBatch, onUpdated }) {
                               <small>{formatNumber(r.birds)} birds</small>
                             )}
                             {view === 'mortalities' && <small>{mortalityLabel(r)}</small>}
+                            {view === 'sales' && <small>{formatRupees(r.amount)}</small>}
                             {view === 'shifts' && r.mortality > 0 && (
                               <small>{formatNumber(r.mortality)} shift mortality</small>
                             )}
@@ -562,6 +583,8 @@ export default function Records({ batches, onOpenBatch, onUpdated }) {
                                 {r.fromCoopName} → {r.toFarm && `${r.toFarm} · `}
                                 {r.toCoopName}
                               </>
+                            ) : view === 'sales' ? (
+                              `${r.customer.name} · ${[...new Set(coopsOf(r))].join(', ')}`
                             ) : (
                               `${r.batch?.batchName ?? 'Deleted batch'} · ${r.coopName}`
                             )}
@@ -570,6 +593,11 @@ export default function Records({ batches, onOpenBatch, onUpdated }) {
                             {[
                               view === 'shifts' && (r.batch?.batchName ?? 'Deleted batch'),
                               r.reason,
+                              view === 'sales' &&
+                                [...new Set(batchesOf(r).map((batch) => batch.batchName))].join(', '),
+                              view === 'sales' && formatKg(r.weightKg),
+                              view === 'sales' &&
+                                PAYMENT_STATUS_LABELS[r.payment?.status ?? 'unpaid'],
                               view === 'weights' &&
                                 `${formatNumber(r.birds)} birds weighed · ${formatKg(r.totalWeightKg)}`,
                               r.createdBy?.name && `By ${r.createdBy.name}`,

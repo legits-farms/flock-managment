@@ -14,12 +14,14 @@ import useBatchRecords from '../useBatchRecords.js';
 import BatchRecords from './BatchRecords.jsx';
 import EntryDetail from './EntryDetail.jsx';
 import RecordForm from './RecordForm.jsx';
+import SoldList from './SoldList.jsx';
 
 const VIEWS = [
   { id: 'vaccinations', label: 'Vaccinations' },
   { id: 'feeding', label: 'Feeding' },
   { id: 'weight', label: 'Weight' },
   { id: 'mortality', label: 'Mortality' },
+  { id: 'sold', label: 'Sold' },
   { id: 'activity', label: 'Activity Logs' },
 ];
 
@@ -141,8 +143,8 @@ export default function CoopPage({ group, onBack, onOpenBatch, onUpdated }) {
             <dd>{formatNumber(mortality)}</dd>
           </div>
           <div>
-            <dt>Vaccinated</dt>
-            <dd>{vaccinated === null ? '…' : formatNumber(vaccinated)}</dd>
+            <dt>Sold Birds</dt>
+            <dd>{formatNumber(coops.reduce((sum, coop) => sum + (coop.sold ?? 0), 0))}</dd>
           </div>
           <div>
             <dt>Not Vaccinated</dt>
@@ -209,13 +211,21 @@ export default function CoopPage({ group, onBack, onOpenBatch, onUpdated }) {
         </button>
       )}
 
-      <BatchRecords
-        view={view}
-        entries={entries}
-        records={records}
-        error={error}
-        onOpenEntry={(kind, record) => setOpened({ kind, record })}
-      />
+      {view === 'sold' ? (
+        <SoldList
+          batchIds={entries.map(({ batch }) => batch._id)}
+          includes={(set) => coopIds.has(set.coopId)}
+          scope="coop"
+        />
+      ) : (
+        <BatchRecords
+          view={view}
+          entries={entries}
+          records={records}
+          error={error}
+          onOpenEntry={(kind, record) => setOpened({ kind, record })}
+        />
+      )}
     </div>
   );
 }

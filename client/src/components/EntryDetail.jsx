@@ -69,6 +69,12 @@ export default function EntryDetail({ kind, record, backLabel, onBack, onOpenBat
                 <dt>Feed Type</dt>
                 <dd>{record.feedType}</dd>
               </div>
+              {record.feedCompany && (
+                <div>
+                  <dt>Feed Company</dt>
+                  <dd>{record.feedCompany}</dd>
+                </div>
+              )}
               <div>
                 <dt>Quantity</dt>
                 <dd>{formatKg(record.quantityKg)}</dd>

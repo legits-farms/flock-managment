@@ -10,6 +10,8 @@ const vaccinationSchema = new mongoose.Schema(
     coopName: { type: String, required: true },
     date: { type: Date, required: [true, 'Vaccination date is required'] },
     vaccine: { type: String, required: [true, 'Vaccine is required'], trim: true },
+    // Where it falls in the vaccination schedule, e.g. "5th Day" or "9th Week"
+    schedule: { type: String, trim: true, default: '' },
     remarks: { type: String, trim: true, default: '' },
     birds: { type: Number, required: true, min: 1 },
     ...evidenceFields,

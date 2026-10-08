@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { checkBroodingAge } from '../age.js';
 import { actor } from '../auth.js';
 import { badRequest, parseEvidence } from '../evidence.js';
-import Batch from '../models/Batch.js';
+import Batch, { coopLive } from '../models/Batch.js';
 import Mortality from '../models/Mortality.js';
 import Shift from '../models/Shift.js';
 import { checkCoopFree } from '../occupancy.js';
@@ -51,7 +51,7 @@ router.post('/', async (req, res, next) => {
     if (!Number.isInteger(birds) || birds < 1) {
       throw badRequest('Number of birds must be a whole number of at least 1');
     }
-    const live = from.birds - from.mortality;
+    const live = coopLive(from);
     if (birds > live) throw badRequest(`Only ${live} live birds are in ${from.name}`);
 
     // Birds that died on the way: they leave the coop but never reach the other one

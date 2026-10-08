@@ -12,6 +12,8 @@ const feedSchema = new mongoose.Schema(
     farm: { type: String, trim: true, default: '' },
     date: { type: Date, required: [true, 'Date is required'] },
     feedType: { type: String, required: [true, 'Feed type is required'], trim: true },
+    // Company the feed is from. Entries made before this was asked have none.
+    feedCompany: { type: String, trim: true, default: '' },
     quantityKg: {
       type: Number,
       required: [true, 'Feed quantity is required'],

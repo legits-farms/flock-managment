@@ -7,6 +7,7 @@ import { requireAuth } from './auth.js';
 import User from './models/User.js';
 import authRoutes from './routes/auth.js';
 import batchRoutes from './routes/batches.js';
+import feedPurchaseRoutes from './routes/feedPurchases.js';
 import optionRoutes from './routes/options.js';
 import {
   feedRouter,
@@ -14,6 +15,7 @@ import {
   vaccinationRouter,
   weightRouter,
 } from './routes/records.js';
+import saleRoutes from './routes/sales.js';
 import shiftRoutes from './routes/shifts.js';
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/flock-management';
@@ -71,6 +73,8 @@ app.use('/api/vaccinations', requireAuth, vaccinationRouter);
 app.use('/api/feeds', requireAuth, feedRouter);
 app.use('/api/weights', requireAuth, weightRouter);
 app.use('/api/shifts', requireAuth, shiftRoutes);
+app.use('/api/sales', requireAuth, saleRoutes);
+app.use('/api/feed-purchases', requireAuth, feedPurchaseRoutes);
 
 app.use((err, req, res, next) => {
   if (err.name === 'ValidationError') {

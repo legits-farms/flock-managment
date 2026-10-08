@@ -67,48 +67,44 @@ export default function MortalityChart() {
         <span>{shown ? `birds on ${formatDay(shown.date)}` : 'birds in total'}</span>
       </p>
 
-      {total === 0 ? (
-        <p className="empty">No mortality registered in the last {DAYS} days.</p>
-      ) : (
-        <div className="chart">
-          <div className="chart-plot" onPointerLeave={() => setActive(null)}>
-            {ticks.map((tick) => (
-              <div
-                key={tick}
-                className="chart-grid"
-                style={{ bottom: `${(tick / top) * 100}%` }}
-                aria-hidden="true"
-              >
-                <span>{formatNumber(tick)}</span>
-              </div>
-            ))}
-            <div className="chart-cols">
-              {days.map((day, i) => (
-                <button
-                  key={day.date.toISOString()}
-                  type="button"
-                  className={active === i ? 'chart-col active' : 'chart-col'}
-                  aria-label={`${formatDay(day.date)}: ${formatNumber(day.birds)} birds`}
-                  onPointerEnter={() => setActive(i)}
-                  onFocus={() => setActive(i)}
-                  onBlur={() => setActive(null)}
-                  onClick={() => setActive(i)}
-                >
-                  <span className="chart-bar" style={{ height: `${(day.birds / top) * 100}%` }} />
-                </button>
-              ))}
+      <div className="chart">
+        <div className="chart-plot" onPointerLeave={() => setActive(null)}>
+          {ticks.map((tick) => (
+            <div
+              key={tick}
+              className="chart-grid"
+              style={{ bottom: `${(tick / top) * 100}%` }}
+              aria-hidden="true"
+            >
+              <span>{formatNumber(tick)}</span>
             </div>
-          </div>
-          <div className="chart-x" aria-hidden="true">
+          ))}
+          <div className="chart-cols">
             {days.map((day, i) => (
-              <span key={day.date.toISOString()}>
-                {/* Every third day, ending on today */}
-                {(DAYS - 1 - i) % 3 === 0 && formatDay(day.date)}
-              </span>
+              <button
+                key={day.date.toISOString()}
+                type="button"
+                className={active === i ? 'chart-col active' : 'chart-col'}
+                aria-label={`${formatDay(day.date)}: ${formatNumber(day.birds)} birds`}
+                onPointerEnter={() => setActive(i)}
+                onFocus={() => setActive(i)}
+                onBlur={() => setActive(null)}
+                onClick={() => setActive(i)}
+              >
+                <span className="chart-bar" style={{ height: `${(day.birds / top) * 100}%` }} />
+              </button>
             ))}
           </div>
         </div>
-      )}
+        <div className="chart-x" aria-hidden="true">
+          {days.map((day, i) => (
+            <span key={day.date.toISOString()}>
+              {/* Every third day, ending on today */}
+              {(DAYS - 1 - i) % 3 === 0 && formatDay(day.date)}
+            </span>
+          ))}
+        </div>
+      </div>
     </section>
   );
 }

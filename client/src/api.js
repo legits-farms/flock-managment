@@ -53,6 +53,12 @@ export const addFarm = (name) =>
 export const addCoopName = (farm, name) =>
   request('/options/coops', { method: 'POST', body: JSON.stringify({ farm, name }) });
 
+export const addVaccine = (name, schedule) =>
+  request('/options/vaccines', { method: 'POST', body: JSON.stringify({ name, schedule }) });
+
+export const addFeedType = (name) =>
+  request('/options/feed-types', { method: 'POST', body: JSON.stringify({ name }) });
+
 // Both coop calls resolve to the updated batch
 export const addCoop = (batchId, coop) =>
   request(`/batches/${batchId}/coops`, { method: 'POST', body: JSON.stringify(coop) });
@@ -73,6 +79,18 @@ export const createWeight = (record) =>
 // Resolves to { id, batch } with the updated batch
 export const createShift = (shift) =>
   request('/shifts', { method: 'POST', body: JSON.stringify(shift) });
+
+// Resolves to { id, batches } with every batch birds were sold from
+export const createSale = (sale) =>
+  request('/sales', { method: 'POST', body: JSON.stringify(sale) });
+
+export const getAllSales = () => request('/sales?all=true');
+
+// Feed bought into the store, newest first. Adding one resolves to the saved purchase.
+export const getFeedPurchases = () => request('/feed-purchases');
+
+export const createFeedPurchase = (purchase) =>
+  request('/feed-purchases', { method: 'POST', body: JSON.stringify(purchase) });
 
 export const getAllShifts = () => request('/shifts?all=true');
 
@@ -123,3 +141,6 @@ export const signup = (credentials) =>
 export const getMe = () => request('/auth/me');
 
 export const getShifts = (batchId) => request(`/shifts${forBatch(batchId)}`);
+
+// A sale can hold birds from several batches; this lists every sale with some from this one
+export const getSales = (batchId) => request(`/sales${forBatch(batchId)}`);

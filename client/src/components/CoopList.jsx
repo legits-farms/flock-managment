@@ -124,7 +124,9 @@ export default function CoopList({
           const current = entries.filter(({ coop }) => coopLive(coop) > 0);
           const entered = entries.reduce((sum, { coop }) => sum + coop.birds, 0);
           const live = entries.reduce((sum, { coop }) => sum + coopLive(coop), 0);
-          const livability = entered > 0 ? (live / entered) * 100 : 0;
+          const mortality = entries.reduce((sum, { coop }) => sum + (coop.mortality ?? 0), 0);
+          // Sold birds left alive, so they do not count against the coop
+          const livability = entered > 0 ? ((entered - mortality) / entered) * 100 : 0;
 
           const card = (
             <>
@@ -162,7 +164,7 @@ export default function CoopList({
                     <b>{formatNumber(entered)}</b> in coop
                   </span>
                   <span>
-                    <b>{formatNumber(entered - live)}</b> mortality
+                    <b>{formatNumber(mortality)}</b> mortality
                   </span>
                 </span>
               </span>

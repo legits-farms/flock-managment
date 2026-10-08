@@ -4,8 +4,10 @@ import {
   photoCount,
   formatKg,
   formatNumber,
+  formatRupees,
   formatWeight,
   mortalityLabel,
+  saleSetBill,
   mortalityType,
 } from '../flock.js';
 import PhotoLink from './PhotoLink.jsx';
@@ -45,7 +47,7 @@ function EntryRow({ onOpen, children }) {
 const byName = (who) => who?.name ?? '';
 
 // Vaccinations / Feeding / Weight / Mortality / Activity Logs tabs, shared by three pages.
-// `records` is { mortalities, vaccinations, shifts, feeds, weights }, or null while loading.
+// `records` is { mortalities, vaccinations, shifts, feeds, weights, sales }, or null while loading.
 // Pass one of:
 //   batch                 – a batch page
 //   entries               – a coop page: the { batch, coop } pairs of every batch in that coop
@@ -88,6 +90,12 @@ export default function BatchRecords({
   const shifts = (records.shifts ?? []).filter(
     (s) => !coopIds || coopIds.has(s.fromCoopId) || coopIds.has(s.toCoopId),
   );
+  // Each sale with just the sets weighed out of this page's coops: a sale can
+  // also hold birds from other batches and coops
+  const placedIds = new Set(placements.map((entry) => entry.coop._id));
+  const sales = (records.sales ?? [])
+    .map((sale) => ({ sale, sets: sale.sets.filter((set) => placedIds.has(set.coopId)) }))
+    .filter(({ sets }) => sets.length > 0);
   // Farms are only worth naming when a shift crosses between them
   const shiftPlace = (s, name, farm) =>
     s.fromFarm.toLowerCase() === s.toFarm.toLowerCase() || !farm ? name : `${name} (${farm})`;
@@ -335,6 +343,22 @@ export default function BatchRecords({
       detail: `${formatWeight(r.avgWeightG)} avg · ${formatNumber(r.birds)} birds weighed`,
       by: byName(r.createdBy),
     })),
+    ...sales.map(({ sale, sets }) => {
+      const birds = sets.reduce((sum, set) => sum + set.birds, 0);
+      const weightKg = sets.reduce((sum, set) => sum + set.weightKg, 0);
+      const amount = sets.reduce((sum, set) => sum + saleSetBill(sale, set), 0);
+      // Where the birds came from, named the way `label` names a record
+      const from = [
+        ...new Set(sets.map((set) => label({ batch: set.batch, coopName: set.coopName }))),
+      ];
+      return {
+        key: sale._id,
+        when: new Date(sale.createdAt),
+        title: `Birds sold · ${from.join(', ')}`,
+        detail: `${formatNumber(birds)} birds · ${formatKg(weightKg)} · ${formatRupees(amount)} · To ${sale.customer.name}`,
+        by: byName(sale.createdBy),
+      };
+    }),
   ].sort((a, b) => b.when - a.when);
 
   return (

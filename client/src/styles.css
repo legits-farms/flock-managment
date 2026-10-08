@@ -530,6 +530,22 @@ dt {
   text-align: left;
 }
 
+/* The note of an option, on the right of its label */
+.dropdown-menu button:has(.dropdown-note) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dropdown-note {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--brown-soft);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
 .dropdown-menu button:hover,
 .dropdown-menu button:focus-visible {
   outline: none;
@@ -954,6 +970,241 @@ dt {
   border-bottom: 1px solid var(--line);
 }
 
+/* A button that opens a file or camera picker: the real input is kept out of sight */
+.file-pick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 0.9rem;
+  text-align: center;
+  cursor: pointer;
+}
+
+.file-pick input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Sale detail */
+
+/* Paid / Partly Paid / Unpaid, in the corner of the bill card */
+.pay-badge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1;
+  padding: 6px 14px;
+  border-radius: 30px;
+  background: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.pay-badge.paid {
+  color: var(--green);
+}
+
+.pay-badge.partial {
+  color: var(--orange);
+}
+
+.pay-badge.unpaid {
+  color: var(--red);
+}
+
+.sale-customer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.sale-customer strong {
+  display: block;
+  font-size: 1.1rem;
+  color: var(--brown);
+  overflow-wrap: anywhere;
+}
+
+.sale-customer small {
+  display: block;
+  margin-top: 2px;
+  color: var(--brown-soft);
+  overflow-wrap: anywhere;
+}
+
+/* The weighed sets, numbered */
+.sale-sets {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sale-sets li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.sale-sets li:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.sale-sets li > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.sale-sets strong,
+.sale-sets small {
+  display: block;
+}
+
+.sale-sets strong {
+  color: var(--brown);
+}
+
+.sale-sets small {
+  color: var(--brown-soft);
+}
+
+.set-no {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--orange-soft);
+  color: var(--orange);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+/* How the bill adds up: what was charged, the total, then what was paid */
+.bill {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bill li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  color: var(--brown);
+}
+
+.bill small {
+  display: block;
+  color: var(--brown-soft);
+}
+
+.bill b {
+  flex-shrink: 0;
+}
+
+.bill .total {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.bill .paid b {
+  color: var(--green);
+}
+
+.bill .due {
+  font-weight: 700;
+}
+
+.bill .due b {
+  color: var(--red);
+}
+
+.bill-proof {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--brown-soft);
+  font-size: 0.9rem;
+}
+
+/* Sold tab: the weighed sets of a sale, on a line of their own */
+.recent-list small.sold-sets {
+  display: block;
+}
+
+/* Feed inventory: a feed type given out without a purchase behind it */
+.recent-list .short {
+  color: var(--red);
+}
+
+.recent-list small.short {
+  display: block;
+}
+
+/* Batch page: what the batch has eaten and what it cost, opening its Feed tab */
+.feed-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  color: var(--brown);
+  text-align: left;
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.feed-strip:active {
+  transform: scale(0.98);
+  border-color: var(--orange);
+}
+
+.feed-strip > span:not(.alert-go) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.feed-strip small {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--brown-soft);
+}
+
+.feed-strip b {
+  font-size: 1.15rem;
+}
+
 .batch-stats.five > .lead dd {
   font-size: 1.5rem;
   line-height: 1.2;
@@ -966,7 +1217,7 @@ dt {
 /* Bottom tabs: icon stacked over the label */
 
 .tab-bar {
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 2px;
   padding-left: 6px;
   padding-right: 6px;
@@ -978,7 +1229,8 @@ dt {
   gap: 0;
   padding: 0 2px;
   border-radius: 16px;
-  font-size: 0.68rem;
+  /* Small enough for six tabs across a narrow phone */
+  font-size: 0.62rem;
   line-height: 1.2;
 }
 
@@ -1021,6 +1273,28 @@ dt {
   pointer-events: none;
 }
 
+.hero-action {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1;
+  min-height: 36px;
+  padding: 0 20px;
+  border: none;
+  border-radius: 40px;
+  background: #fff;
+  color: var(--orange);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: 0 8px 18px -10px rgba(65, 64, 66, 0.6);
+  transition: transform 0.2s;
+}
+
+.hero-action:active {
+  transform: scale(0.97);
+}
+
 .hero-label {
   margin: 0;
   font-size: 0.7rem;
@@ -1047,6 +1321,10 @@ dt {
   padding: 12px 10px;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.16);
+}
+
+.hero-stats.four {
+  grid-template-columns: repeat(4, 1fr);
 }
 
 .hero-stats dt {

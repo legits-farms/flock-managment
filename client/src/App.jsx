@@ -9,9 +9,11 @@ import CoopList from './components/CoopList.jsx';
 import CoopPage from './components/CoopPage.jsx';
 import Dashboard from './components/Dashboard.jsx';
 import FarmPage from './components/FarmPage.jsx';
+import Feed from './components/Feed.jsx';
 import Farms from './components/Farms.jsx';
 import ManageFlock from './components/ManageFlock.jsx';
 import RecordForm from './components/RecordForm.jsx';
+import SaleForm from './components/SaleForm.jsx';
 import ShiftForm from './components/ShiftForm.jsx';
 import Records from './components/Records.jsx';
 
@@ -20,6 +22,7 @@ const TABS = [
   { id: 'batches', label: 'Batches', icon: '☰' },
   { id: 'coops', label: 'Coops', icon: '⌂' },
   { id: 'records', label: 'Records', icon: '▤' },
+  { id: 'feed', label: 'Feed', icon: '≡' },
   { id: 'farms', label: 'Farms', icon: '◈' },
 ];
 
@@ -58,7 +61,7 @@ function Flock({ user, onLogout }) {
   // Enter Batch form open over the current tab
   const [entering, setEntering] = useState(false);
   const [managingId, setManagingId] = useState(null);
-  // Dashboard form in progress: 'mortality' | 'vaccination' | 'feed' | 'weight' | 'shift' | null
+  // Dashboard form in progress: 'mortality' | 'vaccination' | 'feed' | 'weight' | 'shift' | 'sale' | null
   const [action, setAction] = useState(null);
   // Coop and batch the shift form starts on: { coopKey, batchId }, or null
   const [shiftFrom, setShiftFrom] = useState(null);
@@ -185,6 +188,16 @@ function Flock({ user, onLogout }) {
               }}
               onNavigate={goToTab}
             />
+          ) : action === 'sale' ? (
+            <SaleForm
+              batches={batches}
+              onSaved={(sold) => {
+                sold.forEach(handleUpdated);
+                setAction(null);
+              }}
+              onCancel={() => setAction(null)}
+              onNavigate={goToTab}
+            />
           ) : action ? (
             <RecordForm
               key={action}
@@ -259,6 +272,7 @@ function Flock({ user, onLogout }) {
         {!entering && tab === 'records' && (
           <Records batches={batches} onOpenBatch={openBatch} onUpdated={handleUpdated} />
         )}
+        {!entering && tab === 'feed' && <Feed onOpenBatch={openBatch} />}
         {!entering &&
           tab === 'farms' &&
           (farmName ? (

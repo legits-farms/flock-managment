@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { addCoop, addCoopName } from '../api.js';
+import { useEffect, useState } from 'react';
+import { addCoop, addCoopName, getFeedPurchases } from '../api.js';
 import {
   coopFarm,
   coopKey,
@@ -11,16 +11,22 @@ import {
   broodingDue,
   coopsForBatch,
   coopsOnFarm,
+  feedCost,
+  formatKg,
   formatNumber,
+  formatRupees,
   liveBirds,
   totalMortality,
+  totalSold,
   unallocatedBirds,
   vaccinatedBirds,
 } from '../flock.js';
 import useBatchRecords from '../useBatchRecords.js';
+import BatchFeed from './BatchFeed.jsx';
 import BatchRecords from './BatchRecords.jsx';
 import Dropdown from './Dropdown.jsx';
 import OptionSelect from './OptionSelect.jsx';
+import SoldList from './SoldList.jsx';
 
 const formatDate = (value) =>
   new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -29,6 +35,8 @@ const VIEWS = [
   { id: 'coops', label: 'Coops' },
   { id: 'vaccinations', label: 'Vaccinations' },
   { id: 'mortality', label: 'Mortality' },
+  { id: 'feed', label: 'Feed' },
+  { id: 'sold', label: 'Sold' },
   { id: 'activity', label: 'Activity Logs' },
 ];
 
@@ -51,6 +59,18 @@ export default function ManageFlock({
   const [error, setError] = useState('');
   const [view, setView] = useState('coops');
   const { records, error: recordsError } = useBatchRecords(batch._id);
+  // Feed bought into the store, which prices what the batch was fed; null until loaded
+  const [purchases, setPurchases] = useState(null);
+
+  useEffect(() => {
+    getFeedPurchases()
+      .then(setPurchases)
+      // The page still works without the feed cost
+      .catch(() => {});
+  }, []);
+
+  // What the batch has eaten so far and what that feed cost; null until both have loaded
+  const fed = records && purchases ? feedCost(records.feeds, purchases) : null;
 
   const unallocated = unallocatedBirds(batch);
   // The batch's brooding houses still holding birds past the brooding period
@@ -134,8 +154,8 @@ export default function ManageFlock({
             <dd>{formatNumber(totalMortality(batch))}</dd>
           </div>
           <div>
-            <dt>Vaccinated</dt>
-            <dd>{vaccinated === null ? '…' : formatNumber(vaccinated)}</dd>
+            <dt>Sold Birds</dt>
+            <dd>{formatNumber(totalSold(batch))}</dd>
           </div>
           <div>
             <dt>Not Vaccinated</dt>
@@ -144,6 +164,21 @@ export default function ManageFlock({
             </dd>
           </div>
         </dl>
+
+        {/* What the batch has eaten so far; the Feed tab below has the details */}
+        <button type="button" className="feed-strip" onClick={() => setView('feed')}>
+          <span>
+            <small>Feed Consumed</small>
+            <b>{fed ? formatKg(fed.kg) : '…'}</b>
+          </span>
+          <span>
+            <small>Feed Cost</small>
+            <b>{fed ? formatRupees(fed.cost) : '…'}</b>
+          </span>
+          <span className="alert-go" aria-hidden="true">
+            ›
+          </span>
+        </button>
 
         {unallocated > 0 && (
           <p className="notice">{formatNumber(unallocated)} birds not yet allocated to coops</p>
@@ -229,7 +264,23 @@ export default function ManageFlock({
         ))}
       </div>
 
-      {view !== 'coops' && (
+      {view === 'feed' &&
+        (fed ? (
+          <BatchFeed feeds={records.feeds} fed={fed} live={live} />
+        ) : (
+          <p className="status">{recordsError || 'Loading…'}</p>
+        ))}
+
+      {view === 'sold' && (
+        <SoldList
+          batchIds={[batch._id]}
+          includes={(set) => set.batch?._id === batch._id}
+          showCoop
+          scope="batch"
+        />
+      )}
+
+      {view !== 'coops' && view !== 'feed' && view !== 'sold' && (
         <BatchRecords view={view} batch={batch} records={records} error={recordsError} />
       )}
 
@@ -306,8 +357,9 @@ export default function ManageFlock({
                     <small>
                       {coopFarm(batch, coop) && `${coopFarm(batch, coop)} · `}
                       {formatNumber(coop.birds)} birds
-                      {coop.mortality > 0 &&
-                        ` · ${formatNumber(coop.mortality)} mortality · ${formatNumber(coopLive(coop))} live`}
+                      {coop.mortality > 0 && ` · ${formatNumber(coop.mortality)} mortality`}
+                      {coop.sold > 0 && ` · ${formatNumber(coop.sold)} sold`}
+                      {coopLive(coop) !== coop.birds && ` · ${formatNumber(coopLive(coop))} live`}
                     </small>
                   </div>
                   <button

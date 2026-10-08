@@ -40,7 +40,11 @@ export default function BatchList({ batches, loading, error, onRetry, onManage, 
           const live = liveBirds(batch);
           const mortality = totalMortality(batch);
           const unallocated = unallocatedBirds(batch);
-          const livability = batch.numberOfBirds > 0 ? (live / batch.numberOfBirds) * 100 : 0;
+          // Sold birds left alive, so they do not count against the batch
+          const livability =
+            batch.numberOfBirds > 0
+              ? ((batch.numberOfBirds - mortality) / batch.numberOfBirds) * 100
+              : 0;
 
           return (
             <li key={batch._id}>

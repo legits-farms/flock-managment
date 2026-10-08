@@ -118,6 +118,12 @@ router.delete('/:id/coops/:coopId', async (req, res, next) => {
         .json({ message: `${coop.name} has registered mortality and cannot be removed` });
     }
 
+    if (coop.sold > 0) {
+      return res
+        .status(400)
+        .json({ message: `${coop.name} has birds sold from it and cannot be removed` });
+    }
+
     coop.deleteOne();
     await batch.save();
     res.json(batch);

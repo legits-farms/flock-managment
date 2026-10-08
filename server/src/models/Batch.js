@@ -21,8 +21,13 @@ const coopSchema = new mongoose.Schema({
   fromShift: { type: Boolean, default: false },
   // Birds lost in this coop, added up from registered mortality records
   mortality: { type: Number, default: 0, min: 0 },
+  // Birds sold out of this coop, added up from the sales
+  sold: { type: Number, default: 0, min: 0 },
   addedBy: byUser,
 });
+
+// Birds alive in a coop now: those put in it, less the ones lost and sold
+export const coopLive = (coop) => coop.birds - coop.mortality - (coop.sold ?? 0);
 
 const batchSchema = new mongoose.Schema(
   {

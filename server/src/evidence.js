@@ -34,7 +34,8 @@ export const evidenceFields = {
   ],
 };
 
-function parsePhoto({ photo, location, capturedAt } = {}) {
+// One live photo, sent as { photo, location, capturedAt }: its bytes, where and when
+export function parsePhoto({ photo, location, capturedAt } = {}) {
   const match = /^data:image\/jpeg;base64,([A-Za-z0-9+/]+=*)$/.exec(
     typeof photo === 'string' ? photo : ''
   );

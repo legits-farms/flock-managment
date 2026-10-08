@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
-import Batch from '../models/Batch.js';
+import Batch, { coopLive } from '../models/Batch.js';
 import Mortality, { MORTALITY_TYPES, placeType } from '../models/Mortality.js';
 import Feed from '../models/Feed.js';
 import Vaccination from '../models/Vaccination.js';
@@ -26,7 +26,7 @@ function parseBirds(value, coop) {
   if (!Number.isInteger(birds) || birds < 1) {
     throw badRequest('Number of birds must be a whole number of at least 1');
   }
-  const live = coop.birds - coop.mortality;
+  const live = coopLive(coop);
   if (birds > live) throw badRequest(`Only ${live} live birds are in ${coop.name}`);
   return birds;
 }
@@ -121,6 +121,7 @@ export const vaccinationRouter = recordRouter(Vaccination, async (body, createdB
     coopName: coop.name,
     date: body.date,
     vaccine: body.vaccine,
+    schedule: body.schedule,
     remarks: body.remarks,
     birds,
     ...parseEvidence(body),
@@ -141,6 +142,7 @@ export const feedRouter = recordRouter(
       farm: farmOf(batch, coop),
       date: body.date,
       feedType: body.feedType,
+      feedCompany: body.feedCompany,
       quantityKg: parseKg(body.quantityKg, 'Feed quantity'),
       remarks: body.remarks,
       createdBy,
