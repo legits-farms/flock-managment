@@ -214,21 +214,32 @@ export const saleSetBill = (sale, set) =>
       ? sale.maleRate
       : sale.ratePerKg);
 
-// What a sale comes to: the weight of the birds at the rate per kg, plus any
-// boxes bought. Matches the sums in server/src/routes/sales.js.
-export function saleTotals({ sets, ratePerKg, boxMode, boxQty, boxRate }) {
-  const birds = sets.reduce((sum, set) => sum + set.birds, 0);
-  const weightKg = Number(sets.reduce((sum, set) => sum + setWeightKg(set), 0).toFixed(3));
-  const birdBill = Number((weightKg * (Number(ratePerKg) || 0)).toFixed(2));
+// What a sale comes to. Males and females are each billed on their own weight
+// at their own rate per kg, plus any boxes bought. Matches the sums in
+// server/src/routes/sales.js.
+export function saleTotals({ sets, maleRate, femaleRate, boxMode, boxQty, boxRate }) {
+  const of = (gender, rate) => {
+    const own = sets.filter((set) => set.gender === gender);
+    const birds = own.reduce((sum, set) => sum + set.birds, 0);
+    const weightKg = Number(own.reduce((sum, set) => sum + setWeightKg(set), 0).toFixed(3));
+    return {
+      birds,
+      weightKg,
+      avgKg: birds > 0 ? weightKg / birds : 0,
+      bill: Number((weightKg * (Number(rate) || 0)).toFixed(2)),
+    };
+  };
+  const male = of('male', maleRate);
+  const female = of('female', femaleRate);
   const boxBill =
     boxMode === 'buy' ? Number(((Number(boxQty) || 0) * (Number(boxRate) || 0)).toFixed(2)) : 0;
   return {
-    birds,
-    weightKg,
-    avgKg: birds > 0 ? weightKg / birds : 0,
-    birdBill,
+    male,
+    female,
     boxBill,
-    amount: Number((birdBill + boxBill).toFixed(2)),
+    birds: male.birds + female.birds,
+    weightKg: Number((male.weightKg + female.weightKg).toFixed(3)),
+    amount: Number((male.bill + female.bill + boxBill).toFixed(2)),
   };
 }
 

@@ -1020,6 +1020,29 @@ dt {
   color: var(--red);
 }
 
+/* A pick between two or three answers, side by side: the chosen one filled in */
+.choice {
+  display: flex;
+  gap: 8px;
+}
+
+.choice button {
+  flex: 1;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--brown-soft);
+  font-weight: 600;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.choice button.active {
+  border-color: var(--orange);
+  background: var(--orange);
+  color: #fff;
+}
+
 /* A button that opens a file or camera picker: the real input is kept out of sight */
 .file-pick {
   display: flex;
