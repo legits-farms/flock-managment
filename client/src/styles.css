@@ -946,6 +946,20 @@ dt {
   color: var(--orange);
 }
 
+/* "＋ Farm" at the end of the farm tabs: an action, not a tab */
+.subtabs button.add {
+  flex: 0 0 auto;
+  border: 1px dashed var(--orange);
+  color: var(--orange);
+}
+
+/* Farms & Coops: a heading with the coop cards under it */
+.coop-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .batch-stats.four {
   grid-template-columns: 1fr 1fr;
   row-gap: 12px;
@@ -1248,7 +1262,7 @@ dt {
 /* Bottom tabs: icon stacked over the label */
 
 .tab-bar {
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 2px;
   padding-left: 6px;
   padding-right: 6px;
@@ -1260,8 +1274,7 @@ dt {
   gap: 0;
   padding: 0 2px;
   border-radius: 16px;
-  /* Small enough for six tabs across a narrow phone */
-  font-size: 0.62rem;
+  font-size: 0.68rem;
   line-height: 1.2;
 }
 

@@ -43,8 +43,17 @@ export function broodingAge(coopName, entries) {
   return `${formatNumber(age)} ${age === 1 ? 'day' : 'days'}`;
 }
 
-// The feeds birds move through as they grow, in that order
-export const FEED_TYPES = ['Pre-Starter', 'Starter', 'Grower', 'Finisher'];
+// The feeds given to broilers and to layers, each in the order the birds move through them
+export const FEED_TYPES = [
+  'Broiler Prestarter',
+  'Broiler Grower',
+  'Broiler Finisher',
+  'Layer Prestarter',
+  'Layer Starter',
+  'Layer Grower',
+  'Layer Phase 1',
+  'Layer Phase 2',
+];
 
 // What the given feed entries come to: { kg, cost, unpricedKg, types }. Feed is
 // priced at the average price per kg its feed type was bought at; `unpricedKg` is

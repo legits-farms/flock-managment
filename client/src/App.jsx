@@ -10,7 +10,6 @@ import CoopPage from './components/CoopPage.jsx';
 import Dashboard from './components/Dashboard.jsx';
 import FarmPage from './components/FarmPage.jsx';
 import Feed from './components/Feed.jsx';
-import Farms from './components/Farms.jsx';
 import ManageFlock from './components/ManageFlock.jsx';
 import RecordForm from './components/RecordForm.jsx';
 import SaleForm from './components/SaleForm.jsx';
@@ -20,10 +19,10 @@ import Records from './components/Records.jsx';
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: '▦' },
   { id: 'batches', label: 'Batches', icon: '☰' },
-  { id: 'coops', label: 'Coops', icon: '⌂' },
+  // Farms and their coops share a tab
+  { id: 'coops', label: 'Farms', icon: '⌂' },
   { id: 'records', label: 'Records', icon: '▤' },
   { id: 'feed', label: 'Feed', icon: '≡' },
-  { id: 'farms', label: 'Farms', icon: '◈' },
 ];
 
 export default function App() {
@@ -256,26 +255,7 @@ function Flock({ user, onLogout }) {
               onOpenBatch={openBatch}
               onUpdated={handleUpdated}
             />
-          ) : (
-            <CoopList
-              batches={batches}
-              farms={options.farms}
-              coopsByFarm={options.coops}
-              onOptions={setOptions}
-              loading={loading}
-              error={error}
-              onRetry={loadBatches}
-              onOpen={setCoopKey}
-              onNavigate={goToTab}
-            />
-          ))}
-        {!entering && tab === 'records' && (
-          <Records batches={batches} onOpenBatch={openBatch} onUpdated={handleUpdated} />
-        )}
-        {!entering && tab === 'feed' && <Feed onOpenBatch={openBatch} />}
-        {!entering &&
-          tab === 'farms' &&
-          (farmName ? (
+          ) : farmName ? (
             <FarmPage
               key={farmName}
               farm={farmName}
@@ -287,13 +267,22 @@ function Flock({ user, onLogout }) {
               onOpenCoop={openCoop}
             />
           ) : (
-            <Farms
-              farms={options.farms}
+            <CoopList
               batches={batches}
+              farms={options.farms}
+              coopsByFarm={options.coops}
               onOptions={setOptions}
-              onOpen={setFarmName}
+              loading={loading}
+              error={error}
+              onRetry={loadBatches}
+              onOpen={setCoopKey}
+              onOpenFarm={setFarmName}
             />
           ))}
+        {!entering && tab === 'records' && (
+          <Records batches={batches} onOpenBatch={openBatch} onUpdated={handleUpdated} />
+        )}
+        {!entering && tab === 'feed' && <Feed onOpenBatch={openBatch} />}
       </main>
 
       <nav className="tab-bar">
