@@ -1339,6 +1339,40 @@ dt {
   transform: scale(0.97);
 }
 
+/* Dashboard: the Sale button in the corner of the hero, our hen in a badge beside its label */
+.hero-sale {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 18px 4px 4px;
+  border: none;
+  border-radius: 40px;
+  background: #fff;
+  color: var(--orange);
+  font-size: 0.95rem;
+  font-weight: 700;
+  box-shadow: 0 12px 24px -12px rgba(65, 64, 66, 0.7);
+  transition: transform 0.2s;
+}
+
+/* The hen is drawn in white lines, so it sits on an orange disc */
+.hero-sale img {
+  width: 40px;
+  height: 40px;
+  padding: 5px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--orange), #f08a2e);
+  object-fit: contain;
+}
+
+.hero-sale:active {
+  transform: scale(0.96);
+}
+
 .hero-label {
   margin: 0;
   font-size: 0.7rem;
@@ -1367,8 +1401,20 @@ dt {
   background: rgba(255, 255, 255, 0.16);
 }
 
+/* Four figures across: tighter, with the mortality rate under its number */
 .hero-stats.four {
   grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 12px 8px;
+}
+
+.hero-stats.four dd {
+  font-size: 0.98rem;
+}
+
+.hero-stats.four small {
+  display: block;
+  margin-left: 0;
 }
 
 .hero-stats dt {

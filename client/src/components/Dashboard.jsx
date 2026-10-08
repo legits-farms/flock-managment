@@ -8,6 +8,7 @@ import {
   totalSold,
   unallocatedBirds,
 } from '../flock.js';
+import hen from '../assets/hen.png';
 import LoadStatus from './LoadStatus.jsx';
 import MortalityChart from './MortalityChart.jsx';
 import RecentRecords from './RecentRecords.jsx';
@@ -85,7 +86,8 @@ export default function Dashboard({
   return (
     <div className="dashboard">
       <section className="hero">
-        <button type="button" className="hero-action" onClick={() => onAction('sale')}>
+        <button type="button" className="hero-sale" onClick={() => onAction('sale')}>
+          <img src={hen} alt="" />
           Sale
         </button>
         <p className="hero-label">Live Birds</p>
