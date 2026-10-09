@@ -3,7 +3,7 @@ import { badRequest } from './evidence.js';
 
 // What a new database starts with. These are always listed first, in this
 // order, ahead of any farms added later.
-const DEFAULT_FARMS = ['Baktaherhali', 'HQ'];
+const DEFAULT_FARMS = ['Bhaktharahali', 'HQ'];
 // A coop split into partitions is listed once per partition: "Coop 1A", "Coop 1B", …
 const partitions = (coop, count) =>
   Array.from({ length: count }, (_, i) => `Coop ${coop}${String.fromCharCode(65 + i)}`);
@@ -11,15 +11,15 @@ const partitions = (coop, count) =>
 const DEFAULT_COOPS = {
   hq: ['Coop 1', 'Coop 2', 'Coop 3', 'Coop 4'],
   // Two brooding houses, Coop 1 in 8 partitions (A–H) and Coops 2–7 in 6 each (A–F)
-  baktaherhali: [
+  bhaktharahali: [
     'Brooding A',
     'Brooding B',
     ...partitions(1, 8),
     ...[2, 3, 4, 5, 6, 7].flatMap((coop) => partitions(coop, 6)),
   ],
 };
-// Coops listed before coops belonged to a farm were Baktaherhali's
-const LEGACY_COOP_FARM = 'Baktaherhali';
+// Coops listed before coops belonged to a farm were Bhaktharahali's
+const LEGACY_COOP_FARM = 'Bhaktharahali';
 
 const keyOf = (name) => name.trim().toLowerCase();
 

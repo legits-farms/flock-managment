@@ -28,6 +28,7 @@ router.post('/', async (req, res, next) => {
       boxMortality,
       vendor,
       shiftToFarm,
+      enteredBy,
     } = req.body;
 
     // Coops belong to a farm, so every batch needs one from the list
@@ -48,6 +49,7 @@ router.post('/', async (req, res, next) => {
         details: vendor?.details,
       },
       shiftToFarm: farm,
+      enteredBy,
       createdBy: actor(req),
     });
     res.status(201).json(batch);

@@ -28,6 +28,7 @@ const emptyForm = () => ({
   vendorPhone: '',
   vendorDetails: '',
   shiftToFarm: '',
+  enteredBy: '',
 });
 
 export default function BatchForm({ farms, onOptions, onRegistered }) {
@@ -74,6 +75,7 @@ export default function BatchForm({ farms, onOptions, onRegistered }) {
           details: form.vendorDetails,
         },
         shiftToFarm: form.shiftToFarm,
+        enteredBy: form.enteredBy,
       });
       setForm(emptyForm());
       onRegistered(batch);
@@ -212,6 +214,18 @@ export default function BatchForm({ farms, onOptions, onRegistered }) {
           onAdd={async (name) => onOptions(await addFarm(name))}
         />
       </div>
+
+      <label className="field">
+        <span>Entered By</span>
+        <input
+          type="text"
+          value={form.enteredBy}
+          onChange={set('enteredBy')}
+          placeholder="Name of the person entering this batch"
+          maxLength="40"
+          required
+        />
+      </label>
 
       {error && (
         <p className="error" role="alert">

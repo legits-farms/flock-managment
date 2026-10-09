@@ -45,6 +45,7 @@ async function createBatch({ coops, startedDaysAgo, ...details }) {
     ...details,
     startDate: createdAt,
     createdAt,
+    enteredBy: by?.name ?? 'Demo',
     createdBy: by,
     coops: coops.map(([name, birds]) => ({ name, birds, addedBy: by })),
   });
@@ -115,7 +116,7 @@ async function addShift(batch, fromName, toFarm, toName, birds, reason, days) {
   });
 }
 
-// 1. A fully allocated, vaccinated flock at HQ, part of it moved to Baktaherhali
+// 1. A fully allocated, vaccinated flock at HQ, part of it moved to Bhaktharahali
 const sonali = await createBatch({
   batchName: 'Sonali Batch 01',
   breed: 'Sonali',
@@ -136,10 +137,10 @@ await addVaccination(sonali, 'Coop 2', 'Lasota', 14, 'Eye drop');
 await addMortality(sonali, 'Coop 1', 12, 'Heat stress', 9);
 await addMortality(sonali, 'Coop 2', 8, 'Weak chicks', 8);
 await addVaccination(sonali, 'Coop 1', 'Gumboro', 6, 'Drinking water');
-await addShift(sonali, 'Coop 2', 'Baktaherhali', 'Coop 7F', 300, 'Moved for grow-out', 4);
+await addShift(sonali, 'Coop 2', 'Bhaktharahali', 'Coop 7F', 300, 'Moved for grow-out', 4);
 await sonali.save();
 
-// 2. A larger flock at Baktaherhali with some birds still to allocate
+// 2. A larger flock at Bhaktharahali with some birds still to allocate
 const kadaknath = await createBatch({
   batchName: 'Kadaknath Batch 02',
   breed: 'Kadaknath',
@@ -148,7 +149,7 @@ const kadaknath = await createBatch({
   numberOfBirds: 6000,
   boxMortality: 40,
   vendor: { name: 'Green Valley Poultry', phone: '9876500022', details: '' },
-  shiftToFarm: 'Baktaherhali',
+  shiftToFarm: 'Bhaktharahali',
   startedDaysAgo: 10,
   coops: [
     ['Brooding A', 2000],
@@ -158,7 +159,7 @@ const kadaknath = await createBatch({
 });
 await addVaccination(kadaknath, 'Brooding A', "Marek's", 7);
 await addMortality(kadaknath, 'Coop 1A', 15, 'Pecking injuries', 5);
-await addShift(kadaknath, 'Brooding B', 'Baktaherhali', 'Coop 2A', 500, 'Overcrowding', 3);
+await addShift(kadaknath, 'Brooding B', 'Bhaktharahali', 'Coop 2A', 500, 'Overcrowding', 3);
 await addMortality(kadaknath, 'Brooding A', 6, 'Unknown, found in the morning', 1);
 await kadaknath.save();
 

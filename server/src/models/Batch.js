@@ -69,6 +69,13 @@ const batchSchema = new mongoose.Schema(
     shiftToFarm: { type: String, trim: true, default: '' },
     // Birds allocated out of this batch, one entry per coop
     coops: [coopSchema],
+    // The person named on the Enter Batch form; createdBy is the account that was logged in
+    enteredBy: {
+      type: String,
+      required: [true, 'Entered by is required'],
+      trim: true,
+      maxlength: [40, 'Entered by is too long'],
+    },
     createdBy: byUser,
   },
   { timestamps: true }

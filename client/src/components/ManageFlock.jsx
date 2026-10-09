@@ -255,10 +255,10 @@ export default function ManageFlock({
                 <dd>{batch.shiftToFarm}</dd>
               </div>
             )}
-            {batch.createdBy?.name && (
+            {(batch.enteredBy || batch.createdBy?.name) && (
               <div>
                 <dt>Entered By</dt>
-                <dd>{batch.createdBy.name}</dd>
+                <dd>{batch.enteredBy || batch.createdBy.name}</dd>
               </div>
             )}
           </dl>

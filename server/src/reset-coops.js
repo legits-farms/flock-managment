@@ -1,5 +1,5 @@
 // Replaces one farm's listed coops with that farm's default list.
-// Run with `npm run reset:coops` (Baktaherhali) or `npm run reset:coops -- <farm>`.
+// Run with `npm run reset:coops` (Bhaktharahali) or `npm run reset:coops -- <farm>`.
 // Only the pick-lists change: batches keep the coops their birds are already in.
 import mongoose from 'mongoose';
 import { connectDb } from './app.js';
@@ -8,7 +8,7 @@ import { listOptions, listedFarm } from './options.js';
 
 await connectDb();
 
-const farm = await listedFarm(process.argv[2] || 'Baktaherhali');
+const farm = await listedFarm(process.argv[2] || 'Bhaktharahali');
 if (!farm) {
   console.error('No such farm.');
   await mongoose.disconnect();

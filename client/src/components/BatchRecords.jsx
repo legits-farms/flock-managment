@@ -289,7 +289,7 @@ export default function BatchRecords({
       when: new Date(b.createdAt),
       title: scope === 'farm' ? `Batch registered · ${b.batchName}` : 'Batch registered',
       detail: `${formatNumber(b.numberOfBirds)} birds · ${formatNumber(b.boxMortality)} box mortality`,
-      by: byName(b.createdBy),
+      by: b.enteredBy || byName(b.createdBy),
     })),
     // Coops created by a shift show up as the shift itself, further down
     ...placements
