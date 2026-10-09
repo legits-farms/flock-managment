@@ -1,8 +1,9 @@
 import jwt from 'jsonwebtoken';
-import User from './models/User.js';
+import prisma from './db.js';
+import { parseId } from './validate.js';
 
 export const signToken = (user) =>
-  jwt.sign({ sub: user._id.toString(), name: user.name }, process.env.JWT_SECRET, {
+  jwt.sign({ sub: user.id, name: user.name }, process.env.JWT_SECRET, {
     expiresIn: '30d',
   });
 
@@ -16,13 +17,16 @@ export async function requireAuth(req, res, next) {
     if (scheme !== 'Bearer' || !token) throw new Error('No token');
     payload = jwt.verify(token, process.env.JWT_SECRET);
     // Approval links are signed with the same secret but are not logins
-    if (payload.purpose) throw new Error('Not a login token');
+    if (payload.purpose || !parseId(payload.sub)) throw new Error('Not a login token');
   } catch {
     return res.status(401).json({ message: 'Please log in again' });
   }
 
   try {
-    const approved = await User.exists({ _id: payload.sub, status: 'approved' });
+    const approved = await prisma.user.findFirst({
+      where: { id: payload.sub, status: 'approved' },
+      select: { id: true },
+    });
     if (!approved) return res.status(401).json({ message: 'Please log in again' });
     req.user = { id: payload.sub, name: payload.name };
     next();
@@ -31,5 +35,5 @@ export async function requireAuth(req, res, next) {
   }
 }
 
-// The logged-in person, in the shape of the `byUser` schema fields
+// The logged-in person: { user, name }
 export const actor = (req) => ({ user: req.user.id, name: req.user.name });

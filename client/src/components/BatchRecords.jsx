@@ -24,9 +24,6 @@ const formatDateTime = (value) =>
     minute: '2-digit',
   });
 
-// A MongoDB id starts with the time it was created at, in seconds
-const idTime = (id) => new Date(parseInt(id.slice(0, 8), 16) * 1000);
-
 const formatTime = (value) =>
   new Date(value).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
@@ -296,7 +293,7 @@ export default function BatchRecords({
       .filter((entry) => !entry.coop.fromShift)
       .map((entry) => ({
         key: entry.coop._id,
-        when: idTime(entry.coop._id),
+        when: new Date(entry.coop.createdAt),
         title:
           scope === 'coop'
             ? `Batch entered · ${entry.batch.batchName}`

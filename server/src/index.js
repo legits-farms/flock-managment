@@ -4,7 +4,8 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
-import app, { connectDb } from './app.js';
+import app from './app.js';
+import { connectDb } from './db.js';
 
 const PORT = process.env.PORT || 5000;
 
@@ -24,9 +25,9 @@ if (existsSync(path.join(dist, 'index.html'))) {
 
 try {
   await connectDb();
-  console.log('MongoDB connected');
+  console.log('PostgreSQL connected');
   app.listen(PORT, () => console.log(`API running on http://localhost:${PORT}`));
 } catch (err) {
-  console.error(`Could not connect to MongoDB (check MONGO_URI in server/.env): ${err.message}`);
+  console.error(`Could not connect to PostgreSQL (check DATABASE_URL in server/.env): ${err.message}`);
   process.exit(1);
 }

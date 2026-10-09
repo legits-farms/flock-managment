@@ -1,12 +1,7 @@
 // Fills an EMPTY database with demo batches, coops and records to try the app with.
 // Run with `npm run seed:demo`. It refuses to run if any batch already exists.
-import mongoose from 'mongoose';
-import { connectDb } from './app.js';
-import Batch from './models/Batch.js';
-import Mortality, { placeType } from './models/Mortality.js';
-import Shift from './models/Shift.js';
-import User from './models/User.js';
-import Vaccination from './models/Vaccination.js';
+import { findBatch, placeType } from './batches.js';
+import prisma, { disconnectDb } from './db.js';
 import { listOptions } from './options.js';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -18,11 +13,9 @@ const PLACEHOLDER_JPEG = Buffer.from(
   'base64'
 );
 
-await connectDb();
-
-if ((await Batch.countDocuments()) > 0) {
+if ((await prisma.batch.count()) > 0) {
   console.error('The database already has batches. Demo data is only added to an empty one.');
-  await mongoose.disconnect();
+  await disconnectDb();
   process.exit(1);
 }
 
@@ -30,89 +23,119 @@ if ((await Batch.countDocuments()) > 0) {
 await listOptions();
 
 // Demo entries are credited to the first account, if anyone has signed up
-const user = await User.findOne().sort({ _id: 1 });
-const by = user ? { user: user._id, name: user.name } : undefined;
+const user = await prisma.user.findFirst({ orderBy: { createdAt: 'asc' } });
+const createdBy = user ? { createdById: user.id, createdByName: user.name } : {};
+const addedBy = user ? { addedById: user.id, addedByName: user.name } : {};
 
 const evidence = (when) => ({
-  photo: { data: PLACEHOLDER_JPEG, contentType: 'image/jpeg' },
-  location: { lat: 16.8524, lng: 74.5815, accuracy: 12 },
-  capturedAt: when,
+  create: [
+    {
+      position: 0,
+      data: PLACEHOLDER_JPEG,
+      contentType: 'image/jpeg',
+      lat: 16.8524,
+      lng: 74.5815,
+      accuracy: 12,
+      capturedAt: when,
+    },
+  ],
 });
 
-async function createBatch({ coops, startedDaysAgo, ...details }) {
+async function createBatch({ coops, startedDaysAgo, vendor, ...details }) {
   const createdAt = daysAgo(startedDaysAgo);
-  return Batch.create({
-    ...details,
-    startDate: createdAt,
-    createdAt,
-    enteredBy: by?.name ?? 'Demo',
-    createdBy: by,
-    coops: coops.map(([name, birds]) => ({ name, birds, addedBy: by })),
+  const { id } = await prisma.batch.create({
+    data: {
+      ...details,
+      vendorName: vendor.name,
+      vendorPhone: vendor.phone,
+      vendorDetails: vendor.details,
+      startDate: createdAt,
+      createdAt,
+      enteredBy: user?.name ?? 'Demo',
+      ...createdBy,
+    },
   });
-}
-
-const coopOf = (batch, name, farm) =>
-  batch.coops.find((coop) => coop.name === name && (farm ? coop.farm === farm : !coop.farm));
-
-async function addMortality(batch, coopName, birds, reason, days, type = placeType(coopName)) {
-  const coop = coopOf(batch, coopName);
-  const when = daysAgo(days);
-  coop.mortality += birds;
-  await Mortality.create({
-    batch: batch._id,
-    type,
-    coopId: coop._id,
-    coopName,
-    birds,
-    reason,
-    ...evidence(when),
-    createdBy: by,
-    createdAt: when,
-  });
-}
-
-async function addVaccination(batch, coopName, vaccine, days, remarks = '') {
-  const coop = coopOf(batch, coopName);
-  const when = daysAgo(days);
-  await Vaccination.create({
-    batch: batch._id,
-    coopId: coop._id,
-    coopName,
-    date: when,
-    vaccine,
-    remarks,
-    birds: coop.birds - coop.mortality,
-    ...evidence(when),
-    createdBy: by,
-    createdAt: when,
-  });
-}
-
-async function addShift(batch, fromName, toFarm, toName, birds, reason, days) {
-  const from = coopOf(batch, fromName);
-  const otherFarm = toFarm !== batch.shiftToFarm;
-  let to = coopOf(batch, toName, otherFarm ? toFarm : undefined);
-  if (!to) {
-    batch.coops.push({ name: toName, birds: 0, farm: toFarm, fromShift: true, addedBy: by });
-    to = batch.coops[batch.coops.length - 1];
+  // One at a time, so the coops keep this order
+  for (const [name, birds] of coops) {
+    await prisma.coop.create({ data: { batchId: id, name, birds, ...addedBy } });
   }
-  from.birds -= birds;
-  to.birds += birds;
+  return id;
+}
+
+// The batch's coop of that name: on `farm`, or on the batch's own when none is given
+async function coopOf(batchId, name, farm) {
+  const batch = await findBatch(batchId);
+  const coop = batch.coops.find(
+    (other) => other.name === name && (farm ? other.farm === farm : !other.farm)
+  );
+  return { batch, coop };
+}
+
+async function addMortality(batchId, coopName, birds, reason, days, type = placeType(coopName)) {
+  const { coop } = await coopOf(batchId, coopName);
+  const when = daysAgo(days);
+  await prisma.mortality.create({
+    data: {
+      batchId,
+      type,
+      coopId: coop.id,
+      coopName,
+      birds,
+      reason,
+      photos: evidence(when),
+      ...createdBy,
+      createdAt: when,
+    },
+  });
+  await prisma.coop.update({ where: { id: coop.id }, data: { mortality: { increment: birds } } });
+}
+
+async function addVaccination(batchId, coopName, vaccine, days, remarks = '') {
+  const { coop } = await coopOf(batchId, coopName);
+  const when = daysAgo(days);
+  await prisma.vaccination.create({
+    data: {
+      batchId,
+      coopId: coop.id,
+      coopName,
+      date: when,
+      vaccine,
+      remarks,
+      birds: coop.birds - coop.mortality,
+      photos: evidence(when),
+      ...createdBy,
+      createdAt: when,
+    },
+  });
+}
+
+async function addShift(batchId, fromName, toFarm, toName, birds, reason, days) {
+  const { batch, coop: from } = await coopOf(batchId, fromName);
+  const otherFarm = toFarm !== batch.shiftToFarm;
+  const to =
+    (await coopOf(batchId, toName, otherFarm ? toFarm : undefined)).coop ??
+    (await prisma.coop.create({
+      data: { batchId, name: toName, birds: 0, farm: toFarm, fromShift: true, ...addedBy },
+    }));
+  await prisma.coop.update({ where: { id: from.id }, data: { birds: { decrement: birds } } });
+  await prisma.coop.update({ where: { id: to.id }, data: { birds: { increment: birds } } });
 
   const when = daysAgo(days);
-  await Shift.create({
-    batch: batch._id,
-    fromCoopId: from._id,
-    fromCoopName: from.name,
-    fromFarm: batch.shiftToFarm,
-    toCoopId: to._id,
-    toCoopName: to.name,
-    toFarm,
-    birds,
-    reason,
-    date: when,
-    createdBy: by,
-    createdAt: when,
+  await prisma.shift.create({
+    data: {
+      batchId,
+      fromCoopId: from.id,
+      fromCoopName: from.name,
+      fromFarm: batch.shiftToFarm,
+      toCoopId: to.id,
+      toCoopName: to.name,
+      toFarm,
+      birds,
+      reason,
+      date: when,
+      ...createdBy,
+      createdAt: when,
+    },
   });
 }
 
@@ -138,7 +161,6 @@ await addMortality(sonali, 'Coop 1', 12, 'Heat stress', 9);
 await addMortality(sonali, 'Coop 2', 8, 'Weak chicks', 8);
 await addVaccination(sonali, 'Coop 1', 'Gumboro', 6, 'Drinking water');
 await addShift(sonali, 'Coop 2', 'Bhaktharahali', 'Coop 7F', 300, 'Moved for grow-out', 4);
-await sonali.save();
 
 // 2. A larger flock at Bhaktharahali with some birds still to allocate
 const kadaknath = await createBatch({
@@ -161,7 +183,6 @@ await addVaccination(kadaknath, 'Brooding A', "Marek's", 7);
 await addMortality(kadaknath, 'Coop 1A', 15, 'Pecking injuries', 5);
 await addShift(kadaknath, 'Brooding B', 'Bhaktharahali', 'Coop 2A', 500, 'Overcrowding', 3);
 await addMortality(kadaknath, 'Brooding A', 6, 'Unknown, found in the morning', 1);
-await kadaknath.save();
 
 // 3. A new arrival at HQ, not yet allocated to any coop
 await createBatch({
@@ -178,8 +199,8 @@ await createBatch({
 });
 
 console.log(
-  `Demo data added: ${await Batch.countDocuments()} batches, ${await Mortality.countDocuments()} mortality records, ` +
-    `${await Vaccination.countDocuments()} vaccinations, ${await Shift.countDocuments()} shifts` +
-    (by ? `, credited to ${by.name}.` : '.')
+  `Demo data added: ${await prisma.batch.count()} batches, ${await prisma.mortality.count()} mortality records, ` +
+    `${await prisma.vaccination.count()} vaccinations, ${await prisma.shift.count()} shifts` +
+    (user ? `, credited to ${user.name}.` : '.')
 );
-await mongoose.disconnect();
+await disconnectDb();

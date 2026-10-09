@@ -1,5 +1,6 @@
-import Option from './models/Option.js';
+import prisma from './db.js';
 import { badRequest } from './evidence.js';
+import { addedBy } from './serialize.js';
 
 // What a new database starts with. These are always listed first, in this
 // order, ahead of any farms added later.
@@ -18,29 +19,23 @@ const DEFAULT_COOPS = {
     ...[2, 3, 4, 5, 6, 7].flatMap((coop) => partitions(coop, 6)),
   ],
 };
-// Coops listed before coops belonged to a farm were Bhaktharahali's
-const LEGACY_COOP_FARM = 'Bhaktharahali';
 
 const keyOf = (name) => name.trim().toLowerCase();
 
 // The same coop name can exist on several farms, so a coop's key carries its farm
 const coopKey = (farm, name) => `${keyOf(farm)}|${keyOf(name)}`;
 
+// Options of one kind, in the order they were added
+const optionsOf = (kind) => prisma.option.findMany({ where: { kind }, orderBy: { seq: 'asc' } });
+
 // Inserts defaults, tolerating another request seeding the same ones at the same moment
-async function seed(options) {
-  try {
-    await Option.insertMany(options, { ordered: false });
-  } catch (err) {
-    if (err.code !== 11000 && !err.writeErrors) throw err;
-  }
-}
+const seed = (options) => prisma.option.createMany({ data: options, skipDuplicates: true });
 
 async function farmNames() {
-  const find = () => Option.find({ kind: 'farm' }).sort({ _id: 1 });
-  let farms = await find();
+  let farms = await optionsOf('farm');
   if (farms.length === 0) {
     await seed(DEFAULT_FARMS.map((name) => ({ kind: 'farm', name, key: keyOf(name) })));
-    farms = await find();
+    farms = await optionsOf('farm');
   }
   // The default farms first, then the rest in the order they were added
   const rank = (name) => {
@@ -50,30 +45,12 @@ async function farmNames() {
   return farms.map((farm) => farm.name).sort((a, b) => rank(a) - rank(b));
 }
 
-async function moveLegacyCoops() {
-  const legacy = await Option.find({ kind: 'coop', farm: { $in: [null, ''] } });
-  for (const coop of legacy) {
-    coop.farm = LEGACY_COOP_FARM;
-    coop.key = coopKey(LEGACY_COOP_FARM, coop.name);
-    try {
-      await coop.save();
-    } catch (err) {
-      if (err.code !== 11000) throw err;
-      // Already moved by another request
-      await coop.deleteOne();
-    }
-  }
-}
-
 // { farms: [names], coops: { <farm name>: [coop names] }, vaccines: [{ vaccine, when }],
 // feedTypes: [names] }. The vaccines and feed types are only those added by hand; the
 // standard ones are in the app itself.
 export async function listOptions() {
   const farms = await farmNames();
-  await moveLegacyCoops();
-
-  const find = () => Option.find({ kind: 'coop' }).sort({ _id: 1 });
-  let coops = await find();
+  let coops = await optionsOf('coop');
 
   const missing = farms.filter(
     (farm) => DEFAULT_COOPS[keyOf(farm)] && !coops.some((coop) => keyOf(coop.farm) === keyOf(farm))
@@ -89,11 +66,11 @@ export async function listOptions() {
         }))
       )
     );
-    coops = await find();
+    coops = await optionsOf('coop');
   }
 
-  const vaccines = await Option.find({ kind: 'vaccine' }).sort({ _id: 1 });
-  const feedTypes = await Option.find({ kind: 'feedType' }).sort({ _id: 1 });
+  const vaccines = await optionsOf('vaccine');
+  const feedTypes = await optionsOf('feedType');
 
   return {
     farms,
@@ -115,51 +92,66 @@ function parseName(rawName, label) {
   return name;
 }
 
-export async function addFeedType(rawName, addedBy) {
+const exists = (kind, key) => prisma.option.findUnique({ where: { kind_key: { kind, key } } });
+
+export async function addFeedType(rawName, who) {
   const name = parseName(rawName, 'Feed type');
-  if (await Option.exists({ kind: 'feedType', key: keyOf(name) })) {
+  if (await exists('feedType', keyOf(name))) {
     throw badRequest(`Feed type "${name}" is already on the list`);
   }
 
-  await Option.create({ kind: 'feedType', name, key: keyOf(name), addedBy });
+  await prisma.option.create({
+    data: { kind: 'feedType', name, key: keyOf(name), ...addedBy(who) },
+  });
   return listOptions();
 }
 
 // `rawSchedule` is the age the vaccine is given at and may be left empty
-export async function addVaccine(rawName, rawSchedule, addedBy) {
+export async function addVaccine(rawName, rawSchedule, who) {
   const name = parseName(rawName, 'Vaccine');
   const schedule = String(rawSchedule ?? '').trim();
   if (schedule.length > 40) throw badRequest('Day / week is too long');
 
   const key = `${keyOf(name)}|${keyOf(schedule)}`;
-  if (await Option.exists({ kind: 'vaccine', key })) {
+  if (await exists('vaccine', key)) {
     throw badRequest(`Vaccine "${name}" is already on the list`);
   }
 
-  await Option.create({ kind: 'vaccine', name, schedule, key, addedBy });
+  await prisma.option.create({ data: { kind: 'vaccine', name, schedule, key, ...addedBy(who) } });
   return listOptions();
 }
 
 // Both resolve to the full, updated lists
-export async function addFarm(rawName, addedBy) {
+export async function addFarm(rawName, who) {
   const name = parseName(rawName, 'Farm');
   const { farms } = await listOptions();
   if (farms.some((farm) => keyOf(farm) === keyOf(name))) {
     throw badRequest(`Farm "${name}" already exists`);
   }
 
-  await Option.create({ kind: 'farm', name, key: keyOf(name), addedBy });
+  await prisma.option.create({ data: { kind: 'farm', name, key: keyOf(name), ...addedBy(who) } });
   return listOptions();
 }
 
-export async function addCoop(rawFarm, rawName, addedBy) {
+export async function addCoop(rawFarm, rawName, who) {
   const farm = await listedFarm(rawFarm);
   if (!farm) throw badRequest('Select the farm this coop is on');
   const name = parseName(rawName, 'Coop');
   if (await listedCoop(name, farm)) throw badRequest(`Coop "${name}" already exists on ${farm}`);
 
-  await Option.create({ kind: 'coop', farm, name, key: coopKey(farm, name), addedBy });
+  await prisma.option.create({
+    data: { kind: 'coop', farm, name, key: coopKey(farm, name), ...addedBy(who) },
+  });
   return listOptions();
+}
+
+// Takes every coop off a farm's list; listing the options afterwards puts back
+// the defaults of a default farm. Resolves to how many were removed.
+export async function removeCoops(farm) {
+  const { count } = await prisma.option.deleteMany({
+    where: { kind: 'coop', farm: { equals: farm.trim(), mode: 'insensitive' } },
+  });
+  return count;
 }
 
 // The listed spelling of a farm name, or null when it is not on the list

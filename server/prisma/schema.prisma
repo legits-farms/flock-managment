@@ -1,0 +1,347 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// The address of the database is DATABASE_URL, read in prisma.config.js
+datasource db {
+  provider = "postgresql"
+}
+
+// Who did something is stored on batches, coops and records as `…ById` and
+// `…ByName`. The name is a snapshot so the activity log still reads right if
+// the user is renamed.
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  // Digits only; this is what people log in with
+  phone        String   @unique
+  passwordHash String
+  // pending | approved | rejected. A new account can do nothing until the manager approves it
+  status       String   @default("pending")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// The fixed lists people pick from: farms, the coops on each farm, and the
+// vaccines and feed types added to the standard ones
+model Option {
+  id          String   @id @default(cuid())
+  // Order added in, which is the order listed in
+  seq         Int      @default(autoincrement())
+  // farm | coop | vaccine | feedType
+  kind        String
+  name        String
+  // Coops only: the farm the coop is on
+  farm        String?
+  // Vaccines only: the age it is given at, e.g. "5th Day" or "9th Week"
+  schedule    String?
+  // Lower-cased name (for a coop, "farm|name"; for a vaccine, "name|schedule"),
+  // so "Coop 1" and "coop 1" cannot both exist on the same farm
+  key         String
+  addedById   String?
+  addedByName String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([kind, key])
+}
+
+model Batch {
+  id            String   @id @default(cuid())
+  batchName     String
+  startDate     DateTime
+  breed         String
+  age           Float
+  // days | weeks
+  ageUnit       String   @default("days")
+  numberOfBirds Int
+  // Birds found dead in the delivery boxes on arrival
+  boxMortality  Int      @default(0)
+  vendorName    String
+  vendorPhone   String   @default("")
+  vendorDetails String   @default("")
+  shiftToFarm   String   @default("")
+  // The person named on the Enter Batch form; createdBy is the account that was logged in
+  enteredBy     String?
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Birds allocated out of this batch, one entry per coop
+  coops        Coop[]
+  mortalities  Mortality[]
+  vaccinations Vaccination[]
+  feeds        Feed[]
+  weights      Weight[]
+  shifts       Shift[]
+  saleSets     SaleSet[]
+}
+
+// One batch's birds in one coop
+model Coop {
+  id          String  @id @default(cuid())
+  // Order added to the batch in
+  seq         Int     @default(autoincrement())
+  batchId     String
+  batch       Batch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  name        String
+  // Can drop to 0 when every bird is shifted out to another coop
+  birds       Int
+  // Only set when the coop is on another farm than the batch's own
+  farm        String?
+  // Created by a shift rather than by allocating the batch's birds
+  fromShift   Boolean @default(false)
+  // Birds lost in this coop, added up from registered mortality records
+  mortality   Int     @default(0)
+  // Birds sold out of this coop, added up from the sales
+  sold        Int     @default(0)
+  addedById   String?
+  addedByName String?
+  createdAt   DateTime @default(now())
+
+  @@index([batchId])
+}
+
+// A live camera photo with the GPS position and time it was taken at. It belongs
+// to a mortality record, a vaccination record or one set of a sale; `position`
+// is its place among that one's photos, the first being 0.
+model Photo {
+  id            String       @id @default(cuid())
+  mortalityId   String?
+  mortality     Mortality?   @relation(fields: [mortalityId], references: [id], onDelete: Cascade)
+  vaccinationId String?
+  vaccination   Vaccination? @relation(fields: [vaccinationId], references: [id], onDelete: Cascade)
+  saleSetId     String?
+  saleSet       SaleSet?     @relation(fields: [saleSetId], references: [id], onDelete: Cascade)
+  position      Int
+  // The image itself. Left out of normal queries and only loaded by the photo endpoints.
+  data          Bytes
+  contentType   String       @default("image/jpeg")
+  lat           Float
+  lng           Float
+  accuracy      Float?
+  capturedAt    DateTime
+
+  @@index([mortalityId])
+  @@index([vaccinationId])
+  @@index([saleSetId])
+}
+
+// Birds lost in a coop. Box mortality (dead on arrival) is not a record: it is
+// entered with the batch.
+model Mortality {
+  id            String   @id @default(cuid())
+  batchId       String
+  batch         Batch    @relation(fields: [batchId], references: [id])
+  // shift | brooding | coop
+  type          String?
+  // Only set when the birds were lost during a shift entered with the shift form
+  shiftId       String?
+  coopId        String
+  // Snapshot of the coop name at the time of the record
+  coopName      String
+  birds         Int
+  reason        String
+  photos        Photo[]
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([batchId])
+}
+
+model Vaccination {
+  id            String   @id @default(cuid())
+  batchId       String
+  batch         Batch    @relation(fields: [batchId], references: [id])
+  coopId        String
+  // Snapshot of the coop name at the time of the record
+  coopName      String
+  date          DateTime
+  vaccine       String
+  // Where it falls in the vaccination schedule, e.g. "5th Day" or "9th Week"
+  schedule      String   @default("")
+  remarks       String   @default("")
+  birds         Int
+  photos        Photo[]
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([batchId])
+}
+
+// Feed given to one batch's birds in one coop
+model Feed {
+  id            String   @id @default(cuid())
+  batchId       String
+  batch         Batch    @relation(fields: [batchId], references: [id])
+  coopId        String
+  // Snapshot of the coop name at the time of the record
+  coopName      String
+  // Snapshot of the farm that coop is on
+  farm          String   @default("")
+  date          DateTime
+  feedType      String
+  // Company the feed is from. Entries made before this was asked have none.
+  feedCompany   String   @default("")
+  quantityKg    Float
+  remarks       String   @default("")
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([batchId])
+}
+
+// A sample of one batch's birds in one coop, weighed together
+model Weight {
+  id            String   @id @default(cuid())
+  batchId       String
+  batch         Batch    @relation(fields: [batchId], references: [id])
+  coopId        String
+  // Snapshot of the coop name at the time of the record
+  coopName      String
+  // Snapshot of the farm that coop is on
+  farm          String   @default("")
+  date          DateTime
+  // Birds weighed, and what they weighed together
+  birds         Int
+  totalWeightKg Float
+  // Worked out from the two above, in grams per bird
+  avgWeightG    Float
+  remarks       String   @default("")
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([batchId])
+}
+
+// Birds of one batch moved from one coop to another, possibly on another farm.
+// Names and farms are snapshots from the time of the shift.
+model Shift {
+  id            String   @id @default(cuid())
+  batchId       String
+  batch         Batch    @relation(fields: [batchId], references: [id])
+  fromCoopId    String
+  fromCoopName  String
+  fromFarm      String   @default("")
+  toCoopId      String
+  toCoopName    String
+  toFarm        String   @default("")
+  // Birds that left the coop, and how many of those died on the way
+  birds         Int
+  mortality     Int      @default(0)
+  reason        String
+  date          DateTime
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([batchId])
+}
+
+// Birds sold to one customer, weighed out in sets and billed per kg
+model Sale {
+  id               String    @id @default(cuid())
+  date             DateTime
+  customerName     String
+  customerPhone    String
+  customerAddress  String    @default("")
+  sets             SaleSet[]
+  // Price per kg of the sets without a gender; the two below are for those with one
+  ratePerKg        Float     @default(0)
+  maleRate         Float     @default(0)
+  femaleRate       Float     @default(0)
+  // Whose boxes the birds left in: own | borrow | buy
+  boxMode          String    @default("own")
+  // Boxes lent or sold, the price of a sold box, and how many lent ones are back
+  boxQty           Int       @default(0)
+  boxRate          Float     @default(0)
+  boxReturned      Int       @default(0)
+  // Who was there when the birds were weighed: [{ name, phone }]
+  present          Json      @default("[]")
+  notes            String    @default("")
+  // unpaid | partial | paid
+  paymentStatus    String    @default("unpaid")
+  // Rupees received so far: the whole bill when paid, nothing when unpaid
+  amountPaid       Float     @default(0)
+  // cash | upi | bank. This and the reference are only set once something is paid
+  paymentMode      String?
+  // UTR of a UPI or bank payment, or any note for cash
+  paymentReference String    @default("")
+  // Picture of the payment, e.g. a UPI screenshot. Left out of normal queries
+  // and only loaded by the photo endpoint.
+  paymentProof     Bytes?
+  paymentProofType String?
+  hasProof         Boolean   @default(false)
+  // Worked out from the sets and rates when the sale is saved
+  birds            Int
+  maleBirds        Int       @default(0)
+  femaleBirds      Int       @default(0)
+  weightKg         Float     @default(0)
+  maleWeightKg     Float     @default(0)
+  femaleWeightKg   Float     @default(0)
+  // Bill of the sets without a gender
+  birdBill         Float     @default(0)
+  maleBill         Float     @default(0)
+  femaleBill       Float     @default(0)
+  boxBill          Float     @default(0)
+  amount           Float     @default(0)
+  createdById      String?
+  createdByName    String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+// One weighing of birds out of one coop. Names and farms are snapshots from
+// the time of the sale.
+model SaleSet {
+  id             String  @id @default(cuid())
+  saleId         String
+  sale           Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  // Its place among the sale's sets, the first being 0
+  position       Int
+  batchId        String
+  batch          Batch   @relation(fields: [batchId], references: [id])
+  coopId         String
+  coopName       String
+  farm           String  @default("")
+  // male | female. Left out while sales are not split into male and female
+  gender         String?
+  birds          Int
+  boxes          Int     @default(0)
+  boxWeightEmpty Float   @default(0)
+  boxWeightGross Float   @default(0)
+  // Loaded weight less the empty boxes
+  weightKg       Float   @default(0)
+  photos         Photo[]
+
+  @@index([saleId])
+  @@index([batchId])
+}
+
+// Feed bought into the store. What the birds are given out of it is in Feed.
+model FeedPurchase {
+  id            String   @id @default(cuid())
+  date          DateTime
+  feedType      String
+  feedCompany   String   @default("")
+  quantityKg    Float
+  ratePerKg     Float
+  // Worked out from the two above, in rupees
+  amount        Float
+  remarks       String   @default("")
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

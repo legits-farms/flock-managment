@@ -1,5 +1,5 @@
+import { placeType } from './batches.js';
 import { badRequest } from './evidence.js';
-import { placeType } from './models/Mortality.js';
 
 // Birds older than this many days are no longer put in a brooding house
 export const BROODING_MAX_DAYS = 30;

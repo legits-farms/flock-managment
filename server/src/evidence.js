@@ -7,33 +7,6 @@ export const MAX_PHOTOS = 5;
 
 export const badRequest = (message) => Object.assign(new Error(message), { status: 400 });
 
-const position = {
-  lat: { type: Number, required: true },
-  lng: { type: Number, required: true },
-  accuracy: Number,
-};
-
-// Schema fields shared by the record models. The first photo is required; any
-// further ones are in `morePhotos`. The image bytes are left out of normal
-// queries and only loaded by the photo endpoint.
-export const evidenceFields = {
-  photo: {
-    data: { type: Buffer, required: [true, 'A live photo is required'], select: false },
-    contentType: { type: String, default: 'image/jpeg', select: false },
-  },
-  location: position,
-  capturedAt: { type: Date, required: true },
-  morePhotos: [
-    {
-      _id: false,
-      data: { type: Buffer, required: true, select: false },
-      contentType: { type: String, default: 'image/jpeg', select: false },
-      location: position,
-      capturedAt: { type: Date, required: true },
-    },
-  ],
-};
-
 // One live photo, sent as { photo, location, capturedAt }: its bytes, where and when
 export function parsePhoto({ photo, location, capturedAt } = {}) {
   const match = /^data:image\/jpeg;base64,([A-Za-z0-9+/]+=*)$/.exec(
@@ -64,19 +37,23 @@ export function parsePhoto({ photo, location, capturedAt } = {}) {
   };
 }
 
+// Parsed photos as Photo rows, in the order taken: the first is at position 0
+export const photoRows = (photos) =>
+  photos.map(({ data, location, capturedAt }, position) => ({
+    position,
+    data,
+    contentType: 'image/jpeg',
+    ...location,
+    capturedAt,
+  }));
+
 // The body carries the first photo as { photo, location, capturedAt } and any
-// further ones, in the same shape, in `morePhotos`
+// further ones, in the same shape, in `morePhotos`. Resolves to their Photo rows.
 export function parseEvidence(body) {
   const more = body.morePhotos ?? [];
   if (!Array.isArray(more) || more.length > MAX_PHOTOS - 1) {
     throw badRequest(`A record can have up to ${MAX_PHOTOS} photos`);
   }
 
-  const { data, location, capturedAt } = parsePhoto(body);
-  return {
-    photo: { data, contentType: 'image/jpeg' },
-    location,
-    capturedAt,
-    morePhotos: more.map((photo) => ({ ...parsePhoto(photo), contentType: 'image/jpeg' })),
-  };
+  return photoRows([parsePhoto(body), ...more.map((photo) => parsePhoto(photo))]);
 }

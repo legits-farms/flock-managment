@@ -1,13 +1,13 @@
 import { Router } from 'express';
-import mongoose from 'mongoose';
 import { checkBroodingAge } from '../age.js';
 import { actor } from '../auth.js';
+import { coopLive, findBatch } from '../batches.js';
+import prisma from '../db.js';
 import { badRequest, parseEvidence } from '../evidence.js';
-import Batch, { coopLive } from '../models/Batch.js';
-import Mortality from '../models/Mortality.js';
-import Shift from '../models/Shift.js';
 import { checkCoopFree } from '../occupancy.js';
 import { listedCoop, listedFarm } from '../options.js';
+import { addedBy, batchJson, createdBy, recordJson } from '../serialize.js';
+import { parseDate, parseId, requiredText } from '../validate.js';
 
 const router = Router();
 
@@ -17,12 +17,14 @@ router.get('/', async (req, res, next) => {
   try {
     // ?batch=<id> lists one batch's shifts and ?all=true the whole history
     const { batch, all } = req.query;
-    if (batch !== undefined && !mongoose.isValidObjectId(batch)) return res.json([]);
-    const shifts = await Shift.find(batch ? { batch } : {})
-      .sort({ createdAt: -1 })
-      .limit(batch || all === 'true' ? 1000 : 20)
-      .populate('batch', 'batchName');
-    res.json(shifts);
+    if (batch !== undefined && !parseId(batch)) return res.json([]);
+    const shifts = await prisma.shift.findMany({
+      where: batch ? { batchId: batch } : {},
+      orderBy: { createdAt: 'desc' },
+      take: batch || all === 'true' ? 1000 : 20,
+      include: { batch: { select: { id: true, batchName: true } } },
+    });
+    res.json(shifts.map(recordJson));
   } catch (err) {
     next(err);
   }
@@ -33,11 +35,11 @@ router.get('/', async (req, res, next) => {
 // Responds with { id, batch } carrying the updated batch.
 router.post('/', async (req, res, next) => {
   try {
-    const { batchId, fromCoopId, toFarm, toCoop, reason, date } = req.body;
+    const { batchId, fromCoopId, toFarm, toCoop } = req.body;
 
-    const batch = mongoose.isValidObjectId(batchId) ? await Batch.findById(batchId) : null;
+    const batch = await findBatch(batchId);
     if (!batch) throw badRequest('Select the batch to shift');
-    const from = mongoose.isValidObjectId(fromCoopId) ? batch.coops.id(fromCoopId) : null;
+    const from = batch.coops.find((coop) => coop.id === fromCoopId);
     if (!from) throw badRequest('Select the coop to shift from');
 
     const farm = await listedFarm(toFarm);
@@ -69,53 +71,75 @@ router.post('/', async (req, res, next) => {
       throw badRequest('Choose a different coop to shift to');
     }
 
-    const addedBy = actor(req);
-    let to = batch.coops.find((coop) => same(coop.name, coopName) && same(farmOf(coop), farm));
-    if (!to) {
-      batch.coops.push({ name: coopName, birds: 0, farm, fromShift: true, addedBy });
-      to = batch.coops[batch.coops.length - 1];
-    }
+    const reason = requiredText(req.body.reason, 'Reason is required');
+    const date = parseDate(req.body.date, 'Shift date is required');
+    const photos = mortality > 0 ? parseEvidence(req.body) : null;
+    const who = actor(req);
+    const existing = batch.coops.find(
+      (coop) => same(coop.name, coopName) && same(farmOf(coop), farm)
+    );
 
-    const shift = new Shift({
-      batch: batch._id,
-      fromCoopId: from._id,
-      fromCoopName: from.name,
-      fromFarm: farmOf(from),
-      toCoopId: to._id,
-      toCoopName: to.name,
-      toFarm: farm,
-      birds,
-      mortality,
-      reason,
-      date,
-      createdBy: addedBy,
-    });
-    await shift.validate();
+    // The shift, its mortality and the two coops' counts are saved together or not at all
+    const shift = await prisma.$transaction(async (tx) => {
+      const to =
+        existing ??
+        (await tx.coop.create({
+          data: {
+            batchId: batch.id,
+            name: coopName,
+            birds: 0,
+            farm,
+            fromShift: true,
+            ...addedBy(who),
+          },
+        }));
 
-    // Shift mortality is registered like any other, against the coop the birds left
-    const lost =
-      mortality > 0
-        ? new Mortality({
-            batch: batch._id,
+      const made = await tx.shift.create({
+        data: {
+          batchId: batch.id,
+          fromCoopId: from.id,
+          fromCoopName: from.name,
+          fromFarm: farmOf(from),
+          toCoopId: to.id,
+          toCoopName: to.name,
+          toFarm: farm,
+          birds,
+          mortality,
+          reason,
+          date,
+          ...createdBy(who),
+        },
+      });
+
+      // Shift mortality is registered like any other, against the coop the birds left
+      if (photos) {
+        await tx.mortality.create({
+          data: {
+            batchId: batch.id,
             type: 'shift',
-            shift: shift._id,
-            coopId: from._id,
+            shiftId: made.id,
+            coopId: from.id,
             coopName: from.name,
             birds: mortality,
             reason: `Died during the shift to ${to.name}`,
-            ...parseEvidence(req.body),
-            createdBy: addedBy,
-          })
-        : null;
-    await lost?.validate();
+            photos: { create: photos },
+            ...createdBy(who),
+          },
+        });
+      }
 
-    from.birds -= birds - mortality;
-    from.mortality += mortality;
-    to.birds += birds - mortality;
-    await batch.save();
-    await shift.save();
-    await lost?.save();
-    res.status(201).json({ id: shift._id, batch });
+      await tx.coop.update({
+        where: { id: from.id },
+        data: { birds: { decrement: birds - mortality }, mortality: { increment: mortality } },
+      });
+      await tx.coop.update({
+        where: { id: to.id },
+        data: { birds: { increment: birds - mortality } },
+      });
+      return made;
+    });
+
+    res.status(201).json({ id: shift.id, batch: batchJson(await findBatch(batch.id)) });
   } catch (err) {
     next(err);
   }
