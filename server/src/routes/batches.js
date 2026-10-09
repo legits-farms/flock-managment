@@ -1,58 +1,89 @@
 import { Router } from 'express';
-import { actor } from '../auth.js';
-import Batch from '../models/Batch.js';
 import { checkBroodingAge } from '../age.js';
+import { actor } from '../auth.js';
+import { findBatch, withCoops } from '../batches.js';
+import prisma from '../db.js';
+import { badRequest } from '../evidence.js';
 import { checkCoopFree } from '../occupancy.js';
 import { listedCoop, listedFarm } from '../options.js';
+import { addedBy, batchJson, createdBy } from '../serialize.js';
+import { parseDate, requiredText, text } from '../validate.js';
 
 const router = Router();
 
+const AGE_UNITS = ['days', 'weeks'];
+
 router.get('/', async (req, res, next) => {
   try {
-    const batches = await Batch.find().sort({ createdAt: -1 });
-    res.json(batches);
+    const batches = await prisma.batch.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: withCoops,
+    });
+    res.json(batches.map(batchJson));
   } catch (err) {
     next(err);
   }
 });
 
+// What the Enter Batch form sends, checked and as the columns of a batch
+function parseBatch(body) {
+  const { vendor } = body;
+  const batchName = requiredText(body.batchName, 'Batch name is required');
+  const startDate = parseDate(body.startDate, 'Batch start date is required');
+  const breed = requiredText(body.breed, 'Breed is required');
+
+  if (body.age == null || body.age === '') throw badRequest('Age of the birds is required');
+  const age = Number(body.age);
+  if (!Number.isFinite(age)) throw badRequest('Age of the birds is not valid');
+  if (age < 0) throw badRequest('Age cannot be negative');
+  const ageUnit = body.ageUnit || 'days';
+  if (!AGE_UNITS.includes(ageUnit)) throw badRequest('Select days or weeks for the age');
+
+  if (body.numberOfBirds == null || body.numberOfBirds === '') {
+    throw badRequest('Number of birds is required');
+  }
+  const numberOfBirds = Number(body.numberOfBirds);
+  if (!Number.isInteger(numberOfBirds)) throw badRequest('Number of birds must be a whole number');
+  if (numberOfBirds < 1) throw badRequest('Number of birds must be at least 1');
+
+  // Birds found dead in the delivery boxes on arrival
+  const boxMortality = Number(body.boxMortality ?? 0);
+  if (!Number.isInteger(boxMortality)) throw badRequest('Mortality must be a whole number');
+  if (boxMortality < 0) throw badRequest('Mortality cannot be negative');
+  if (boxMortality > numberOfBirds) {
+    throw badRequest('Mortality cannot be more than the number of birds');
+  }
+
+  const vendorName = requiredText(vendor?.name, 'Vendor name is required');
+  const enteredBy = requiredText(body.enteredBy, 'Entered by is required');
+  if (enteredBy.length > 40) throw badRequest('Entered by is too long');
+
+  return {
+    batchName,
+    startDate,
+    breed,
+    age,
+    ageUnit,
+    numberOfBirds,
+    boxMortality,
+    vendorName,
+    vendorPhone: text(vendor?.phone),
+    vendorDetails: text(vendor?.details),
+    enteredBy,
+  };
+}
+
 router.post('/', async (req, res, next) => {
   try {
-    const {
-      batchName,
-      startDate,
-      breed,
-      age,
-      ageUnit,
-      numberOfBirds,
-      boxMortality,
-      vendor,
-      shiftToFarm,
-      enteredBy,
-    } = req.body;
-
     // Coops belong to a farm, so every batch needs one from the list
-    const farm = await listedFarm(shiftToFarm);
+    const farm = await listedFarm(req.body.shiftToFarm);
     if (!farm) return res.status(400).json({ message: 'Select a farm' });
 
-    const batch = await Batch.create({
-      batchName,
-      startDate,
-      breed,
-      age,
-      ageUnit,
-      numberOfBirds,
-      boxMortality,
-      vendor: {
-        name: vendor?.name,
-        phone: vendor?.phone,
-        details: vendor?.details,
-      },
-      shiftToFarm: farm,
-      enteredBy,
-      createdBy: actor(req),
+    const batch = await prisma.batch.create({
+      data: { ...parseBatch(req.body), shiftToFarm: farm, ...createdBy(actor(req)) },
+      include: withCoops,
     });
-    res.status(201).json(batch);
+    res.status(201).json(batchJson(batch));
   } catch (err) {
     next(err);
   }
@@ -60,7 +91,7 @@ router.post('/', async (req, res, next) => {
 
 router.post('/:id/coops', async (req, res, next) => {
   try {
-    const batch = await Batch.findById(req.params.id);
+    const batch = await findBatch(req.params.id);
     if (!batch) return res.status(404).json({ message: 'Batch not found' });
 
     const birds = Number(req.body.birds);
@@ -98,9 +129,16 @@ router.post('/:id/coops', async (req, res, next) => {
         .json({ message: `Only ${unallocated} birds are left to allocate in this batch` });
     }
 
-    batch.coops.push({ name, birds, ...(!onOwnFarm && { farm }), addedBy: actor(req) });
-    await batch.save();
-    res.status(201).json(batch);
+    await prisma.coop.create({
+      data: {
+        batchId: batch.id,
+        name,
+        birds,
+        ...(!onOwnFarm && { farm }),
+        ...addedBy(actor(req)),
+      },
+    });
+    res.status(201).json(batchJson(await findBatch(batch.id)));
   } catch (err) {
     next(err);
   }
@@ -108,10 +146,10 @@ router.post('/:id/coops', async (req, res, next) => {
 
 router.delete('/:id/coops/:coopId', async (req, res, next) => {
   try {
-    const batch = await Batch.findById(req.params.id);
+    const batch = await findBatch(req.params.id);
     if (!batch) return res.status(404).json({ message: 'Batch not found' });
 
-    const coop = batch.coops.id(req.params.coopId);
+    const coop = batch.coops.find((other) => other.id === req.params.coopId);
     if (!coop) return res.status(404).json({ message: 'Coop not found' });
 
     if (coop.mortality > 0) {
@@ -126,9 +164,8 @@ router.delete('/:id/coops/:coopId', async (req, res, next) => {
         .json({ message: `${coop.name} has birds sold from it and cannot be removed` });
     }
 
-    coop.deleteOne();
-    await batch.save();
-    res.json(batch);
+    await prisma.coop.delete({ where: { id: coop.id } });
+    res.json(batchJson(await findBatch(batch.id)));
   } catch (err) {
     next(err);
   }

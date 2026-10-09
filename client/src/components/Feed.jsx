@@ -83,8 +83,8 @@ export default function Feed({ onOpenBatch }) {
       <FeedPurchaseForm
         addedFeedTypes={data.feedTypes}
         onFeedTypes={(feedTypes) => setData((prev) => ({ ...prev, feedTypes }))}
-        onSaved={(purchase) => {
-          setData((prev) => ({ ...prev, purchases: [purchase, ...prev.purchases] }));
+        onSaved={(purchases) => {
+          setData((prev) => ({ ...prev, purchases: [...purchases, ...prev.purchases] }));
           setAdding(false);
         }}
         onCancel={() => setAdding(false)}

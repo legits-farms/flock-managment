@@ -6,15 +6,23 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
+    "postinstall": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "copy:mongo": "node prisma/copy-from-mongo.js",
     "seed:demo": "node src/seed-demo.js",
     "reset:coops": "node src/reset-coops.js"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "^8.9.5"
+    "prisma": "^7.10.0"
+  },
+  "devDependencies": {
+    "mongodb": "^6.12.0"
   }
 }

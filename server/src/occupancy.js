@@ -1,5 +1,6 @@
+import { coopLive, withCoops } from './batches.js';
+import prisma from './db.js';
 import { badRequest } from './evidence.js';
-import Batch, { coopLive } from './models/Batch.js';
 
 const same = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
@@ -7,7 +8,10 @@ const same = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
 // where another batch still has live birds. A batch that only has history
 // there (every bird shifted out, lost or sold) does not count.
 export async function checkCoopFree(batch, farm, coopName) {
-  const others = await Batch.find({ _id: { $ne: batch._id }, 'coops.0': { $exists: true } });
+  const others = await prisma.batch.findMany({
+    where: { id: { not: batch.id }, coops: { some: {} } },
+    include: withCoops,
+  });
   const occupant = others.find((other) =>
     other.coops.some(
       (coop) =>

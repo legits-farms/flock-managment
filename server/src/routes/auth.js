@@ -1,6 +1,6 @@
 import { Router, urlencoded } from 'express';
 import bcrypt from 'bcryptjs';
-import User from '../models/User.js';
+import prisma from '../db.js';
 import { requireAuth, signToken } from '../auth.js';
 import {
   approvalConfigured,
@@ -16,7 +16,7 @@ const router = Router();
 
 const session = (user) => ({
   token: signToken(user),
-  user: { id: user._id, name: user.name, phone: user.phone },
+  user: { id: user.id, name: user.name, phone: user.phone },
 });
 
 const WAITING = "Your account is waiting for the manager's approval.";
@@ -44,16 +44,18 @@ router.post('/signup', async (req, res, next) => {
       return res.status(503).json({ message: 'Sign-up is not set up yet. Contact the manager.' });
     }
 
-    const existing = await User.findOne({ phone });
+    const existing = await prisma.user.findUnique({ where: { phone } });
     if (existing?.status === 'pending') throw badRequest(WAITING);
     if (existing?.status === 'rejected') throw badRequest(REJECTED);
     if (existing) throw badRequest('An account with this phone number already exists');
 
-    const user = await User.create({
-      name,
-      phone,
-      passwordHash: await bcrypt.hash(password, 10),
-      status: 'pending',
+    const user = await prisma.user.create({
+      data: {
+        name,
+        phone,
+        passwordHash: await bcrypt.hash(password, 10),
+        status: 'pending',
+      },
     });
 
     try {
@@ -61,7 +63,7 @@ router.post('/signup', async (req, res, next) => {
     } catch (err) {
       // Without the email the manager would never hear of this account
       console.error(`Could not email the approval request: ${err.message}`);
-      await user.deleteOne();
+      await prisma.user.delete({ where: { id: user.id } });
       return res
         .status(503)
         .json({ message: 'Could not send your request to the manager. Please try again.' });
@@ -73,7 +75,7 @@ router.post('/signup', async (req, res, next) => {
     });
   } catch (err) {
     // Two sign-ups racing for the same phone number
-    if (err.code === 11000) {
+    if (err.code === 'P2002') {
       return res
         .status(400)
         .json({ message: 'An account with this phone number already exists' });
@@ -86,7 +88,9 @@ router.post('/signup', async (req, res, next) => {
 // scanners open links too); approving or rejecting takes a press of a button.
 router.get('/approval', async (req, res, next) => {
   try {
-    const user = await User.findById(readApprovalToken(req.query.token));
+    const user = await prisma.user.findUnique({
+      where: { id: readApprovalToken(req.query.token) },
+    });
     if (!user) throw badRequest('This account no longer exists.');
 
     if (user.status !== 'pending') {
@@ -126,12 +130,13 @@ router.post('/approval', urlencoded({ extended: false }), async (req, res, next)
     const status = decision === 'approve' ? 'approved' : 'rejected';
 
     // Only a pending account can be decided, so an old link cannot undo a decision
-    const user = await User.findOneAndUpdate(
-      { _id: readApprovalToken(req.body.token), status: 'pending' },
-      { status },
-      { new: true }
-    );
-    if (!user) throw badRequest('This request was already decided or no longer exists.');
+    const id = readApprovalToken(req.body.token);
+    const { count } = await prisma.user.updateMany({
+      where: { id, status: 'pending' },
+      data: { status },
+    });
+    if (count === 0) throw badRequest('This request was already decided or no longer exists.');
+    const user = await prisma.user.findUnique({ where: { id } });
 
     res.send(
       page(
@@ -154,7 +159,10 @@ router.post('/login', async (req, res, next) => {
     const phone = String(req.body.phone ?? '').replace(/\D/g, '');
     const password = String(req.body.password ?? '');
 
-    const user = await User.findOne({ phone }).select('+passwordHash');
+    const user = await prisma.user.findUnique({
+      where: { phone },
+      omit: { passwordHash: false },
+    });
     const matches = user && (await bcrypt.compare(password, user.passwordHash));
     if (!matches) throw badRequest('Wrong phone number or password');
     if (user.status === 'pending') return res.status(403).json({ message: WAITING });
@@ -168,9 +176,9 @@ router.post('/login', async (req, res, next) => {
 
 router.get('/me', requireAuth, async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user) return res.status(401).json({ message: 'Please log in again' });
-    res.json({ id: user._id, name: user.name, phone: user.phone });
+    res.json({ id: user.id, name: user.name, phone: user.phone });
   } catch (err) {
     next(err);
   }

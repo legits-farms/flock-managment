@@ -1,10 +1,8 @@
 import 'dotenv/config';
-import dns from 'node:dns';
 import express from 'express';
 import cors from 'cors';
-import mongoose from 'mongoose';
 import { requireAuth } from './auth.js';
-import User from './models/User.js';
+import { connectDb } from './db.js';
 import authRoutes from './routes/auth.js';
 import batchRoutes from './routes/batches.js';
 import feedPurchaseRoutes from './routes/feedPurchases.js';
@@ -17,31 +15,6 @@ import {
 } from './routes/records.js';
 import saleRoutes from './routes/sales.js';
 import shiftRoutes from './routes/shifts.js';
-
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/flock-management';
-
-// One shared connection, opened on first use. On Vercel the app is loaded per
-// serverless instance, so the connection is reused between requests there too.
-let connecting = null;
-
-export function connectDb() {
-  if (!connecting) {
-    // A mongodb+srv:// address needs a DNS lookup that some PCs' default DNS refuses.
-    // DNS_SERVERS (comma separated) makes Node use those servers instead.
-    if (process.env.DNS_SERVERS) {
-      dns.setServers(process.env.DNS_SERVERS.split(',').map((server) => server.trim()));
-    }
-    connecting = mongoose
-      .connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 })
-      // Accounts made before approval existed keep their access
-      .then(() => User.updateMany({ status: { $exists: false } }, { $set: { status: 'approved' } }))
-      .catch((err) => {
-        connecting = null;
-        throw err;
-      });
-  }
-  return connecting;
-}
 
 const app = express();
 app.use(cors());
@@ -59,7 +32,7 @@ app.use('/api', async (req, res, next) => {
     await connectDb();
     next();
   } catch (err) {
-    console.error(`Could not connect to MongoDB: ${err.message}`);
+    console.error(`Could not connect to PostgreSQL: ${err.message}`);
     res.status(503).json({ message: 'The database is unavailable. Please try again.' });
   }
 });
@@ -77,17 +50,16 @@ app.use('/api/sales', requireAuth, saleRoutes);
 app.use('/api/feed-purchases', requireAuth, feedPurchaseRoutes);
 
 app.use((err, req, res, next) => {
-  if (err.name === 'ValidationError') {
-    const message = Object.values(err.errors)
-      .map((e) => (e.name === 'CastError' ? `${e.path} is not valid` : e.message))
-      .join('. ');
-    return res.status(400).json({ message });
-  }
-  if (err.name === 'CastError') {
-    return res.status(404).json({ message: 'Not found' });
-  }
   if (err.status === 400) {
     return res.status(400).json({ message: err.message });
+  }
+  // Prisma: a row that has to be unique already exists, e.g. two people adding the same coop
+  if (err.code === 'P2002') {
+    return res.status(400).json({ message: 'That already exists' });
+  }
+  // Prisma: the row to change is not there (any more)
+  if (err.code === 'P2025') {
+    return res.status(404).json({ message: 'Not found' });
   }
   if (err.type === 'entity.too.large') {
     return res.status(413).json({ message: 'Photo is too large' });

@@ -19,7 +19,7 @@ export const approvalConfigured = () =>
   Boolean(process.env.RESEND_API_KEY && process.env.MANAGER_EMAIL);
 
 export const approvalToken = (user) =>
-  jwt.sign({ sub: user._id.toString(), purpose: 'approval' }, process.env.JWT_SECRET, {
+  jwt.sign({ sub: user.id, purpose: 'approval' }, process.env.JWT_SECRET, {
     expiresIn: LINK_VALID_FOR,
   });
 

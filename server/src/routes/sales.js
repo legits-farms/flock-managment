@@ -1,18 +1,24 @@
 import { Router } from 'express';
-import mongoose from 'mongoose';
 import { actor } from '../auth.js';
-import { badRequest, parsePhoto } from '../evidence.js';
-import Batch, { coopLive } from '../models/Batch.js';
-import Sale, {
-  BOX_MODES,
-  GENDERS,
-  MAX_SALE_PHOTOS,
-  MAX_SET_PHOTOS,
-  PAYMENT_MODES,
-  PAYMENT_STATUSES,
-} from '../models/Sale.js';
+import { coopLive, findBatch } from '../batches.js';
+import prisma from '../db.js';
+import { badRequest, parsePhoto, photoRows } from '../evidence.js';
+import { batchJson, createdBy, saleJson } from '../serialize.js';
+import { parseDate, parseId, text } from '../validate.js';
 
 const router = Router();
+
+const GENDERS = ['male', 'female'];
+// Whose boxes the birds left in: the customer's own, ours on loan, or ours sold with the birds
+const BOX_MODES = ['own', 'borrow', 'buy'];
+
+// How much of the bill has been paid, and how it was paid
+const PAYMENT_STATUSES = ['unpaid', 'partial', 'paid'];
+const PAYMENT_MODES = ['cash', 'upi', 'bank'];
+
+// Photos of one weighed set, and of a whole sale. Keeps a request under the JSON body limit.
+const MAX_SET_PHOTOS = 2;
+const MAX_SALE_PHOTOS = 8;
 
 const round = (value, places) => Number(value.toFixed(places));
 
@@ -32,14 +38,17 @@ function parseCount(value, label) {
 const MAX_PROOF_BYTES = 3 * 1024 * 1024;
 
 // What was paid towards a bill of `amount` rupees, from the `payment` of the request:
-// { status, amountPaid, mode, reference, proof } with the proof a picture as a data URL
+// { status, amountPaid, mode, reference, proof } with the proof a picture as a data URL.
+// Resolves to the payment columns of a sale.
 function parsePayment(raw = {}, amount) {
-  const status = raw.status || 'unpaid';
-  if (!PAYMENT_STATUSES.includes(status)) throw badRequest('Select paid, partly paid or unpaid');
-  if (status === 'unpaid') return { status, amountPaid: 0 };
+  const paymentStatus = raw.status || 'unpaid';
+  if (!PAYMENT_STATUSES.includes(paymentStatus)) {
+    throw badRequest('Select paid, partly paid or unpaid');
+  }
+  if (paymentStatus === 'unpaid') return { paymentStatus, amountPaid: 0 };
 
   let amountPaid = amount;
-  if (status === 'partial') {
+  if (paymentStatus === 'partial') {
     amountPaid = Number(raw.amountPaid);
     if (!Number.isFinite(amountPaid) || amountPaid <= 0) throw badRequest('Enter the amount paid');
     if (amountPaid >= amount) {
@@ -49,10 +58,10 @@ function parsePayment(raw = {}, amount) {
   if (!PAYMENT_MODES.includes(raw.mode)) throw badRequest('Select how it was paid');
 
   const payment = {
-    status,
+    paymentStatus,
     amountPaid,
-    mode: raw.mode,
-    reference: String(raw.reference ?? '').trim().slice(0, 100),
+    paymentMode: raw.mode,
+    paymentReference: String(raw.reference ?? '').trim().slice(0, 100),
   };
   if (!raw.proof) return payment;
 
@@ -62,7 +71,7 @@ function parsePayment(raw = {}, amount) {
   if (!match) throw badRequest('The payment photo must be a picture');
   const data = Buffer.from(match[2], 'base64');
   if (data.length > MAX_PROOF_BYTES) throw badRequest('Photo is too large');
-  return { ...payment, proof: { data, contentType: match[1] }, hasProof: true };
+  return { ...payment, paymentProof: data, paymentProofType: match[1], hasProof: true };
 }
 
 // "+91 98765-43210" -> "9876543210"
@@ -74,16 +83,33 @@ function parsePhone(value) {
   return digits;
 }
 
+// The n-th of something, from the address: a whole number from 0, or null
+function parseIndex(value) {
+  const index = Number(value ?? 0);
+  return Number.isInteger(index) && index >= 0 ? index : null;
+}
+
 router.get('/', async (req, res, next) => {
   try {
     // ?batch=<id> lists the sales out of one batch and ?all=true the whole history
     const { batch, all } = req.query;
-    if (batch !== undefined && !mongoose.isValidObjectId(batch)) return res.json([]);
-    const sales = await Sale.find(batch ? { 'sets.batch': batch } : {})
-      .sort({ createdAt: -1 })
-      .limit(batch || all === 'true' ? 1000 : 20)
-      .populate('sets.batch', 'batchName breed');
-    res.json(sales);
+    if (batch !== undefined && !parseId(batch)) return res.json([]);
+    const sales = await prisma.sale.findMany({
+      where: batch ? { sets: { some: { batchId: batch } } } : {},
+      orderBy: { createdAt: 'desc' },
+      take: batch || all === 'true' ? 1000 : 20,
+      include: {
+        sets: {
+          orderBy: { position: 'asc' },
+          include: {
+            batch: { select: { id: true, batchName: true, breed: true } },
+            // Where and when each photo was taken; the images are left out
+            photos: { orderBy: { position: 'asc' } },
+          },
+        },
+      },
+    });
+    res.json(sales.map(saleJson));
   } catch (err) {
     next(err);
   }
@@ -93,12 +119,17 @@ router.get('/', async (req, res, next) => {
 // The set is given by its position in the sale.
 router.get('/:id/sets/:set/photo/:index?', async (req, res, next) => {
   try {
-    const sale = await Sale.findById(req.params.id).select(
-      '+sets.photos.data +sets.photos.contentType'
-    );
-    const photo = sale?.sets[Number(req.params.set)]?.photos[Number(req.params.index ?? 0)];
-    if (!photo?.data) return res.status(404).json({ message: 'Not found' });
-    res.type(photo.contentType).send(photo.data);
+    const set = parseIndex(req.params.set);
+    const position = parseIndex(req.params.index);
+    const photo =
+      set === null || position === null
+        ? null
+        : await prisma.photo.findFirst({
+            where: { saleSet: { saleId: req.params.id, position: set }, position },
+            omit: { data: false },
+          });
+    if (!photo) return res.status(404).json({ message: 'Not found' });
+    res.type(photo.contentType).send(Buffer.from(photo.data));
   } catch (err) {
     next(err);
   }
@@ -107,12 +138,12 @@ router.get('/:id/sets/:set/photo/:index?', async (req, res, next) => {
 // The picture of the payment, when one was added
 router.get('/:id/payment/photo', async (req, res, next) => {
   try {
-    const sale = await Sale.findById(req.params.id).select(
-      '+payment.proof.data +payment.proof.contentType'
-    );
-    const proof = sale?.payment?.proof;
-    if (!proof?.data) return res.status(404).json({ message: 'Not found' });
-    res.type(proof.contentType).send(proof.data);
+    const sale = await prisma.sale.findUnique({
+      where: { id: req.params.id },
+      select: { paymentProof: true, paymentProofType: true },
+    });
+    if (!sale?.paymentProof) return res.status(404).json({ message: 'Not found' });
+    res.type(sale.paymentProofType).send(Buffer.from(sale.paymentProof));
   } catch (err) {
     next(err);
   }
@@ -122,10 +153,11 @@ router.get('/:id/payment/photo', async (req, res, next) => {
 // leave their coops. Responds with { id, batches } carrying the updated batches.
 router.post('/', async (req, res, next) => {
   try {
-    const { customer, date, notes } = req.body;
+    const { customer } = req.body;
     const name = String(customer?.name ?? '').trim();
     if (!name) throw badRequest('Customer name is required');
     const phone = parsePhone(customer?.phone);
+    const date = parseDate(req.body.date, 'Sale date is required');
 
     if (!Array.isArray(req.body.sets) || req.body.sets.length === 0) {
       throw badRequest('Record at least one set of birds');
@@ -133,17 +165,18 @@ router.post('/', async (req, res, next) => {
 
     // Several sets can come out of the same batch, and out of the same coop
     const batches = new Map();
+    // Birds taken out of each coop, by the coop's id
     const taken = new Map();
     const sets = [];
     for (const raw of req.body.sets) {
       const batchId = String(raw.batchId ?? '');
       if (!batches.has(batchId)) {
-        const found = mongoose.isValidObjectId(batchId) ? await Batch.findById(batchId) : null;
+        const found = await findBatch(batchId);
         if (!found) throw badRequest('Select the batch of every set');
         batches.set(batchId, found);
       }
       const batch = batches.get(batchId);
-      const coop = mongoose.isValidObjectId(raw.coopId) ? batch.coops.id(raw.coopId) : null;
+      const coop = batch.coops.find((other) => other.id === raw.coopId);
       if (!coop) throw badRequest('Select the coop of every set');
       // The gender is optional: a sale need not be split into male and female
       if (raw.gender && !GENDERS.includes(raw.gender)) {
@@ -154,11 +187,11 @@ router.post('/', async (req, res, next) => {
       if (!Number.isInteger(birds) || birds < 1) {
         throw badRequest('Number of birds must be a whole number of at least 1');
       }
-      const soFar = taken.get(String(coop._id)) ?? 0;
+      const soFar = taken.get(coop.id) ?? 0;
       if (soFar + birds > coopLive(coop)) {
         throw badRequest(`Only ${coopLive(coop)} live birds are in ${coop.name}`);
       }
-      taken.set(String(coop._id), soFar + birds);
+      taken.set(coop.id, soFar + birds);
 
       const boxWeightEmpty = parseAmount(raw.boxWeightEmpty, 'Empty box weight');
       const boxWeightGross = parseAmount(raw.boxWeightGross, 'Loaded weight');
@@ -172,8 +205,9 @@ router.post('/', async (req, res, next) => {
       }
 
       sets.push({
-        batch: batch._id,
-        coopId: coop._id,
+        position: sets.length,
+        batchId: batch.id,
+        coopId: coop.id,
         coopName: coop.name,
         // A coop without its own farm is on the batch's farm
         farm: coop.farm || batch.shiftToFarm || '',
@@ -183,7 +217,7 @@ router.post('/', async (req, res, next) => {
         boxWeightEmpty,
         boxWeightGross,
         weightKg: round(boxWeightGross - boxWeightEmpty, 3),
-        photos: photos.map((photo) => ({ ...parsePhoto(photo), contentType: 'image/jpeg' })),
+        photos: photoRows(photos.map((photo) => parsePhoto(photo))),
       });
     }
     if (sets.reduce((sum, set) => sum + set.photos.length, 0) > MAX_SALE_PHOTOS) {
@@ -218,46 +252,53 @@ router.post('/', async (req, res, next) => {
 
     const amount = round(birdBill + maleBill + femaleBill + boxBill, 2);
 
-    const sale = new Sale({
-      date,
-      customer: { name, phone, address: customer?.address },
-      sets,
-      ratePerKg,
-      maleRate,
-      femaleRate,
-      boxMode,
-      boxQty,
-      boxRate,
-      boxReturned,
-      present: (Array.isArray(req.body.present) ? req.body.present : [])
-        .map((person) => ({
-          name: String(person?.name ?? '').trim(),
-          phone: String(person?.phone ?? '').replace(/\D/g, ''),
-        }))
-        .filter((person) => person.name),
-      notes,
-      payment: parsePayment(req.body.payment, amount),
-      birds: total(undefined, 'birds') + maleBirds + femaleBirds,
-      maleBirds,
-      femaleBirds,
-      weightKg: round(plainWeightKg + maleWeightKg + femaleWeightKg, 3),
-      maleWeightKg,
-      femaleWeightKg,
-      birdBill,
-      maleBill,
-      femaleBill,
-      boxBill,
-      amount,
-      createdBy: actor(req),
-    });
-    await sale.validate();
+    // The sale and the coops' sold counts are saved together or not at all
+    const [sale] = await prisma.$transaction([
+      prisma.sale.create({
+        data: {
+          date,
+          customerName: name,
+          customerPhone: phone,
+          customerAddress: text(customer?.address),
+          sets: {
+            create: sets.map(({ photos, ...set }) => ({ ...set, photos: { create: photos } })),
+          },
+          ratePerKg,
+          maleRate,
+          femaleRate,
+          boxMode,
+          boxQty,
+          boxRate,
+          boxReturned,
+          present: (Array.isArray(req.body.present) ? req.body.present : [])
+            .map((person) => ({
+              name: String(person?.name ?? '').trim(),
+              phone: String(person?.phone ?? '').replace(/\D/g, ''),
+            }))
+            .filter((person) => person.name),
+          notes: text(req.body.notes),
+          ...parsePayment(req.body.payment, amount),
+          birds: total(undefined, 'birds') + maleBirds + femaleBirds,
+          maleBirds,
+          femaleBirds,
+          weightKg: round(plainWeightKg + maleWeightKg + femaleWeightKg, 3),
+          maleWeightKg,
+          femaleWeightKg,
+          birdBill,
+          maleBill,
+          femaleBill,
+          boxBill,
+          amount,
+          ...createdBy(actor(req)),
+        },
+      }),
+      ...[...taken].map(([id, birds]) =>
+        prisma.coop.update({ where: { id }, data: { sold: { increment: birds } } })
+      ),
+    ]);
 
-    for (const set of sets) {
-      batches.get(String(set.batch)).coops.id(set.coopId).sold += set.birds;
-    }
-    for (const batch of batches.values()) await batch.save();
-    await sale.save();
-    res.status(201).json({ id: sale._id, batches: [...batches.values()] });
+    const updated = await Promise.all([...batches.values()].map((batch) => findBatch(batch.id)));
+    res.status(201).json({ id: sale.id, batches: updated.map(batchJson) });
   } catch (err) {
     next(err);
   }
