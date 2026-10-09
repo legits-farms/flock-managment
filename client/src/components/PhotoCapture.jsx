@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useIsAdmin } from '../admin.js';
 
 const MAX_SIDE = 1280;
 // Matches MAX_PHOTOS in server/src/evidence.js
@@ -52,10 +53,36 @@ function drawStampedPhoto(video, location, takenAt) {
   return canvas.toDataURL('image/jpeg', 0.8);
 }
 
-// Live-camera-only photo field, for up to `max` photos. There is
-// deliberately no file input, so a photo cannot be picked from the gallery.
-// `value` is a list of { photo, location, capturedAt }, in the order taken.
+// A picture file as a JPEG data URL, scaled down like a live photo. Rejects
+// when the file is not a picture the browser can read.
+function readPicture(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      const scale = Math.min(1, MAX_SIDE / Math.max(image.width, image.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(image.width * scale);
+      canvas.height = Math.round(image.height * scale);
+      canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg', 0.8));
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Could not read that picture. Choose a photo.'));
+    };
+    image.src = url;
+  });
+}
+
+// Photo field for up to `max` photos, taken live with the camera. Only an admin
+// also gets a file input to pick one from the gallery; everyone else cannot.
+// `value` is a list of { photo, location, capturedAt }, in the order taken; one
+// from the gallery is { photo, fromGallery: true, capturedAt } with no location.
 export default function PhotoCapture({ value, onChange, max = MAX_PHOTOS }) {
+  const isAdmin = useIsAdmin();
+  const [galleryError, setGalleryError] = useState('');
   const [open, setOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const [location, setLocation] = useState(null);
@@ -131,13 +158,35 @@ export default function PhotoCapture({ value, onChange, max = MAX_PHOTOS }) {
     setOpen(false);
   }
 
+  async function pickFromGallery(e) {
+    const [file] = e.target.files;
+    // Lets the same file be picked again after it is removed
+    e.target.value = '';
+    if (!file) return;
+    setGalleryError('');
+    try {
+      const photo = await readPicture(file);
+      // The time only tells the photos apart here; the server times it itself
+      onChange([...value, { photo, fromGallery: true, capturedAt: new Date().toISOString() }]);
+    } catch (err) {
+      setGalleryError(err.message);
+    }
+  }
+
   return (
     <div className="photo">
       {value.length > 0 && (
         <ul className="photo-grid">
           {value.map((shot, i) => (
             <li key={shot.capturedAt}>
-              <img src={shot.photo} alt={`Photo ${i + 1}, with time and location stamp`} />
+              <img
+                src={shot.photo}
+                alt={
+                  shot.fromGallery
+                    ? `Photo ${i + 1}, from the gallery`
+                    : `Photo ${i + 1}, with time and location stamp`
+                }
+              />
               <button
                 type="button"
                 className="photo-remove"
@@ -157,6 +206,18 @@ export default function PhotoCapture({ value, onChange, max = MAX_PHOTOS }) {
         </button>
       ) : (
         <p className="empty">Up to {max} photos here.</p>
+      )}
+
+      {isAdmin && value.length < max && (
+        <label className="secondary gallery-pick">
+          Choose from Gallery
+          <input type="file" accept="image/*" hidden onChange={pickFromGallery} />
+        </label>
+      )}
+      {galleryError && (
+        <p className="error" role="alert">
+          {galleryError}
+        </p>
       )}
 
       {open && (

@@ -14,9 +14,17 @@ import { badRequest } from '../evidence.js';
 
 const router = Router();
 
+// What the app knows about the logged-in person. An admin gets the admin-only parts of the forms.
+const profile = (user) => ({
+  id: user.id,
+  name: user.name,
+  phone: user.phone,
+  isAdmin: user.role === 'admin',
+});
+
 const session = (user) => ({
   token: signToken(user),
-  user: { id: user.id, name: user.name, phone: user.phone },
+  user: profile(user),
 });
 
 const WAITING = "Your account is waiting for the manager's approval.";
@@ -178,7 +186,7 @@ router.get('/me', requireAuth, async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user) return res.status(401).json({ message: 'Please log in again' });
-    res.json({ id: user.id, name: user.name, phone: user.phone });
+    res.json(profile(user));
   } catch (err) {
     next(err);
   }

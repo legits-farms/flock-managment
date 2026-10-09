@@ -11,9 +11,14 @@ export const createdBy = (who) => ({ createdById: who?.user, createdByName: who?
 export const addedBy = (who) => ({ addedById: who?.user, addedByName: who?.name });
 
 // Where and when a photo was taken. The image itself is fetched separately.
+// One from the gallery has no position and says so.
 const photoJson = (photo) => ({
-  location: { lat: photo.lat, lng: photo.lng, accuracy: photo.accuracy ?? undefined },
+  location:
+    photo.lat == null
+      ? undefined
+      : { lat: photo.lat, lng: photo.lng, accuracy: photo.accuracy ?? undefined },
   capturedAt: photo.capturedAt,
+  fromGallery: photo.fromGallery || undefined,
 });
 
 const coopJson = (coop) => ({

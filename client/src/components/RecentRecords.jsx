@@ -20,7 +20,7 @@ export default function RecentRecords() {
             ...r,
             kind: mortalityLabel(r),
             detail: `${formatNumber(r.birds)} birds · ${r.reason}`,
-            when: r.createdAt,
+            when: r.date ?? r.createdAt,
             photoUrl: `/mortalities/${r._id}/photo`,
           })),
           ...vaccinations.map((r) => ({

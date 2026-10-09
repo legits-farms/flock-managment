@@ -255,7 +255,7 @@ export default function BatchRecords({
                   {formatNumber(r.birds)} birds · {label(r)}
                 </strong>
                 <small>
-                  {mortalityLabel(r)} · {formatDateTime(r.createdAt)}
+                  {mortalityLabel(r)} · {formatDateTime(r.date ?? r.createdAt)}
                   {byName(r.createdBy) && ` · By ${byName(r.createdBy)}`}
                   <br />
                   {r.reason}

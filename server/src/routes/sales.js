@@ -217,7 +217,7 @@ router.post('/', async (req, res, next) => {
         boxWeightEmpty,
         boxWeightGross,
         weightKg: round(boxWeightGross - boxWeightEmpty, 3),
-        photos: photoRows(photos.map((photo) => parsePhoto(photo))),
+        photos: photoRows(photos.map((photo) => parsePhoto(photo, req.user))),
       });
     }
     if (sets.reduce((sum, set) => sum + set.photos.length, 0) > MAX_SALE_PHOTOS) {

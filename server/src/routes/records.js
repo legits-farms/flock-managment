@@ -90,7 +90,7 @@ function recordRouter(model, create, { photos = true } = {}) {
 
   router.post('/', async (req, res, next) => {
     try {
-      res.status(201).json(await create(req.body, createdBy(actor(req))));
+      res.status(201).json(await create(req.body, createdBy(actor(req)), req.user));
     } catch (err) {
       next(err);
     }
@@ -99,14 +99,24 @@ function recordRouter(model, create, { photos = true } = {}) {
   return router;
 }
 
-export const mortalityRouter = recordRouter('mortality', async (body, by) => {
+// When the birds were lost. Only an admin may say: for everyone else it is now.
+function parseMortalityDate(value, user) {
+  if (value == null || value === '') return new Date();
+  if (!user.isAdmin) throw badRequest('Only an admin can set the date of a mortality');
+  const date = parseDate(value, 'The date is not valid');
+  if (date > new Date()) throw badRequest('The date cannot be in the future');
+  return date;
+}
+
+export const mortalityRouter = recordRouter('mortality', async (body, by, user) => {
   const { batch, coop } = await findBatchAndCoop(body);
   const birds = parseBirds(body.birds, coop);
   if (body.type && !MORTALITY_TYPES.includes(body.type)) {
     throw badRequest('Select the mortality type');
   }
   const reason = requiredText(body.reason, 'Reason is required');
-  const photos = parseEvidence(body);
+  const date = parseMortalityDate(body.date, user);
+  const photos = parseEvidence(body, user);
 
   // The record and the coop's count are saved together or not at all
   const [record] = await prisma.$transaction([
@@ -118,6 +128,7 @@ export const mortalityRouter = recordRouter('mortality', async (body, by) => {
         coopName: coop.name,
         birds,
         reason,
+        date,
         photos: { create: photos },
         ...by,
       },
@@ -127,7 +138,7 @@ export const mortalityRouter = recordRouter('mortality', async (body, by) => {
   return created(record, batch);
 });
 
-export const vaccinationRouter = recordRouter('vaccination', async (body, by) => {
+export const vaccinationRouter = recordRouter('vaccination', async (body, by, user) => {
   const { batch, coop } = await findBatchAndCoop(body);
   const birds = parseBirds(body.birds, coop);
 
@@ -141,7 +152,7 @@ export const vaccinationRouter = recordRouter('vaccination', async (body, by) =>
       schedule: text(body.schedule),
       remarks: text(body.remarks),
       birds,
-      photos: { create: parseEvidence(body) },
+      photos: { create: parseEvidence(body, user) },
       ...by,
     },
   });

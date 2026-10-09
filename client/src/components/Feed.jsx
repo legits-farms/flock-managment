@@ -217,6 +217,8 @@ export default function Feed({ onOpenBatch }) {
                             <span className="record-meta">
                               {[
                                 `${formatRupees(p.ratePerKg)}/kg`,
+                                p.extraCharges > 0 &&
+                                  `+ ${formatRupees(p.extraCharges)} ${p.extraChargeLabel}`,
                                 p.remarks,
                                 p.createdBy?.name && `By ${p.createdBy.name}`,
                               ]
