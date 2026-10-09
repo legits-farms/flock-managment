@@ -8,21 +8,27 @@ const today = () => new Date().toLocaleDateString('en-CA');
 
 const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
-// Form for feed bought into the store. `addedFeedTypes` are the feed types
-// added by hand, listed after the standard ones; `onFeedTypes` takes the
-// updated list when another is added here.
+const emptyItem = () => ({ feedType: '', quantityKg: '', ratePerKg: '' });
+
+const itemCost = (item) => (Number(item.quantityKg) || 0) * (Number(item.ratePerKg) || 0);
+
+// Form for feed bought into the store, one or more feed types at a time.
+// `addedFeedTypes` are the feed types added by hand, listed after the standard
+// ones; `onFeedTypes` takes the updated list when another is added here.
+// `onSaved` takes the purchases made, one per feed type.
 export default function FeedPurchaseForm({ addedFeedTypes, onFeedTypes, onSaved, onCancel }) {
   const [date, setDate] = useState(today);
-  const [feedType, setFeedType] = useState('');
+  const [items, setItems] = useState(() => [emptyItem()]);
   const [feedCompany, setFeedCompany] = useState('');
-  const [quantityKg, setQuantityKg] = useState('');
-  const [ratePerKg, setRatePerKg] = useState('');
   const [remarks, setRemarks] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   const feedTypes = [...FEED_TYPES, ...addedFeedTypes];
-  const amount = (Number(quantityKg) || 0) * (Number(ratePerKg) || 0);
+  const amount = items.reduce((sum, item) => sum + itemCost(item), 0);
+
+  const setItem = (index, field) => (value) =>
+    setItems((prev) => prev.map((item, at) => (at === index ? { ...item, [field]: value } : item)));
 
   async function saveFeedType(name) {
     if (feedTypes.some((other) => sameName(other, name))) {
@@ -34,7 +40,11 @@ export default function FeedPurchaseForm({ addedFeedTypes, onFeedTypes, onSaved,
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!feedType) return setError('Please select the feed type.');
+    if (items.some((item) => !item.feedType)) {
+      return setError(
+        items.length === 1 ? 'Please select the feed type.' : 'Please select every feed type.',
+      );
+    }
 
     setSubmitting(true);
     setError('');
@@ -42,11 +52,13 @@ export default function FeedPurchaseForm({ addedFeedTypes, onFeedTypes, onSaved,
       onSaved(
         await createFeedPurchase({
           date,
-          feedType,
           feedCompany,
-          quantityKg: Number(quantityKg),
-          ratePerKg: Number(ratePerKg),
           remarks,
+          items: items.map((item) => ({
+            feedType: item.feedType,
+            quantityKg: Number(item.quantityKg),
+            ratePerKg: Number(item.ratePerKg),
+          })),
         }),
       );
     } catch (err) {
@@ -69,19 +81,6 @@ export default function FeedPurchaseForm({ addedFeedTypes, onFeedTypes, onSaved,
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         </label>
 
-        <div className="field">
-          <label htmlFor="purchase-feed-type">Feed Type</label>
-          <OptionSelect
-            id="purchase-feed-type"
-            value={feedType}
-            names={feedTypes}
-            onChange={setFeedType}
-            placeholder="Select feed type"
-            addLabel="Add feed type"
-            onAdd={saveFeedType}
-          />
-        </div>
-
         <label className="field">
           <span>Feed Company</span>
           <input
@@ -93,34 +92,74 @@ export default function FeedPurchaseForm({ addedFeedTypes, onFeedTypes, onSaved,
           />
         </label>
 
-        <div className="field-row">
-          <label className="field">
-            <span>Quantity (kg)</span>
-            <input
-              type="number"
-              inputMode="decimal"
-              min="0.001"
-              step="any"
-              value={quantityKg}
-              onChange={(e) => setQuantityKg(e.target.value)}
-              placeholder="0"
-              required
-            />
-          </label>
-          <label className="field">
-            <span>Price per kg (₹)</span>
-            <input
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="any"
-              value={ratePerKg}
-              onChange={(e) => setRatePerKg(e.target.value)}
-              placeholder="0"
-              required
-            />
-          </label>
-        </div>
+        {items.map((item, i) => (
+          <fieldset className="group" key={i}>
+            <legend>{items.length === 1 ? 'Feed' : `Feed ${i + 1}`}</legend>
+
+            <div className="field">
+              <label htmlFor={`purchase-feed-type-${i}`}>Feed Type</label>
+              <OptionSelect
+                id={`purchase-feed-type-${i}`}
+                value={item.feedType}
+                names={feedTypes}
+                onChange={setItem(i, 'feedType')}
+                placeholder="Select feed type"
+                addLabel="Add feed type"
+                onAdd={saveFeedType}
+              />
+            </div>
+
+            <div className="field-row">
+              <label className="field">
+                <span>Quantity (kg)</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0.001"
+                  step="any"
+                  value={item.quantityKg}
+                  onChange={(e) => setItem(i, 'quantityKg')(e.target.value)}
+                  placeholder="0"
+                  required
+                />
+              </label>
+              <label className="field">
+                <span>Price per kg (₹)</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="any"
+                  value={item.ratePerKg}
+                  onChange={(e) => setItem(i, 'ratePerKg')(e.target.value)}
+                  placeholder="0"
+                  required
+                />
+              </label>
+            </div>
+
+            {items.length > 1 && (
+              <p className="hint">
+                Cost: {formatRupees(itemCost(item))}
+                <button
+                  type="button"
+                  className="link"
+                  onClick={() => setItems((prev) => prev.filter((_, at) => at !== i))}
+                >
+                  Remove
+                </button>
+              </p>
+            )}
+          </fieldset>
+        ))}
+
+        <button
+          type="button"
+          className="secondary"
+          onClick={() => setItems((prev) => [...prev, emptyItem()])}
+        >
+          + Add Another Feed Type
+        </button>
 
         <label className="field">
           <span>Total Cost</span>
