@@ -288,6 +288,8 @@ model Sale {
   boxReturned      Int       @default(0)
   // Who was there when the birds were weighed: [{ name, phone }]
   present          Json      @default("[]")
+  // Other things sold on the same bill, e.g. eggs: [{ name, qty, rate, amount }]
+  items            Json      @default("[]")
   notes            String    @default("")
   // unpaid | partial | paid
   paymentStatus    String    @default("unpaid")
@@ -315,6 +317,13 @@ model Sale {
   maleBill         Float     @default(0)
   femaleBill       Float     @default(0)
   boxBill          Float     @default(0)
+  itemBill         Float     @default(0)
+  // Taken off the bill: amount | percent, the rupees or percentage entered, and
+  // what that came to in rupees
+  discountType     String    @default("amount")
+  discountValue    Float     @default(0)
+  discount         Float     @default(0)
+  // The bills above less the discount
   amount           Float     @default(0)
   createdById      String?
   createdByName    String?
@@ -338,6 +347,8 @@ model SaleSet {
   // male | female. Only on sets of sales made while each set was all male or all
   // female and billed at its own rate
   gender         String?
+  // The number on the box the birds were weighed in, when one was noted
+  boxNo          String  @default("")
   birds          Int
   boxes          Int     @default(0)
   boxWeightEmpty Float   @default(0)

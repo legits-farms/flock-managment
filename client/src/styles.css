@@ -218,11 +218,555 @@ textarea:focus {
   color: var(--orange);
 }
 
+/* The pages of a form filled in over several: the one being filled in stands out,
+   and the ones already done carry a tick and can be gone back to */
+.steps {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.steps li {
+  flex: 1;
+  min-width: 0;
+  border-top: 4px solid var(--line);
+  border-radius: 2px;
+}
+
+.steps button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 8px 0 0;
+  border: none;
+  background: none;
+  color: var(--brown-soft);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.steps button:disabled {
+  cursor: default;
+}
+
+.steps span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--cream-2);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.steps li.done,
+.steps li.active {
+  border-top-color: var(--orange);
+}
+
+.steps li.done span {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.steps li.active button {
+  color: var(--orange);
+}
+
+.steps li.active span {
+  background: var(--orange);
+  color: #fff;
+}
+
+/* What the page is for, in a few plain words */
+.step-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.step-head h2 {
+  font-size: 1.4rem;
+}
+
+.step-head p:last-child {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--brown-soft);
+}
+
+/* A plain sentence saying what to do in a part of a form */
+.help {
+  margin: -4px 0 0;
+  font-size: 0.88rem;
+  color: var(--brown-soft);
+}
+
+/* "optional" beside the name of a field that can be left empty */
+.field > span em {
+  margin-left: 4px;
+  font-style: normal;
+  font-weight: 500;
+  font-size: 0.75rem;
+  color: var(--clay);
+}
+
+/* The bill laid out as a paper invoice: scrolls sideways when the screen is narrow */
+.invoice {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.invoice table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.invoice th,
+.invoice td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.invoice thead th {
+  background: var(--cream-2);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brown-soft);
+}
+
+.invoice th:nth-child(n + 3),
+.invoice td:nth-child(n + 3),
+.invoice tfoot th,
+.invoice tfoot td {
+  text-align: right;
+}
+
+.invoice tfoot th {
+  font-weight: 600;
+  color: var(--brown-soft);
+}
+
+.invoice tfoot .final th,
+.invoice tfoot .final td {
+  border-bottom: none;
+  background: var(--orange-soft);
+  color: var(--brown);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+/* What the customer asked for beside what is weighed so far: stays under the header
+   while the page scrolls */
+.target {
+  position: sticky;
+  top: calc(62px + env(safe-area-inset-top) + 6px);
+  z-index: 5;
+  padding: 10px 12px;
+  border: 1px solid var(--orange);
+  border-radius: 16px;
+  background: var(--orange-soft);
+  box-shadow: 0 12px 22px -18px rgba(65, 64, 66, 0.6);
+}
+
+.target dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 0;
+}
+
+.target dl > div + div {
+  padding-left: 10px;
+  border-left: 1px solid var(--orange);
+}
+
+.target dt {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--orange);
+}
+
+.target dd {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--brown);
+}
+
+.target dd.breed {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--brown-soft);
+}
+
+.target dd.off {
+  color: var(--red);
+}
+
+.target p {
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--orange);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--brown);
+}
+
+/* How far along the birds added are towards the number wanted */
+.target-bar {
+  height: 8px;
+  margin-top: 10px;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.target-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--orange), #f7a32b);
+  transition: width 0.3s;
+}
+
+.target-bar.over span {
+  background: var(--red);
+}
+
+.target .target-bar + p {
+  margin-top: 6px;
+  padding-top: 0;
+  border-top: none;
+}
+
+/* One numbered part of a page of a form, done in order: its number turns into a
+   green tick once it is filled in */
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 12px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--orange);
+  border-radius: 16px;
+  background: var(--cream);
+  min-width: 0;
+}
+
+.stage.done {
+  border-left-color: var(--green);
+}
+
+.stage > header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stage-no {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--orange);
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.stage.done .stage-no {
+  background: var(--green);
+}
+
+.stage h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.stage > header p {
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  color: var(--brown-soft);
+}
+
+.stage .secondary.add {
+  border: none;
+  background: var(--brown);
+  color: #fff;
+}
+
+/* Small things added one after another, each with a cross to take it out again */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chips li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 40px;
+  background: #fff;
+  font-size: 0.88rem;
+}
+
+.chips button,
+.box-list li > button {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: #fdecea;
+  color: var(--red);
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+/* Two figures worked out from what was typed, side by side */
+.readout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0;
+}
+
+.readout > div {
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px dashed var(--clay);
+}
+
+.readout dt {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brown-soft);
+}
+
+.readout dd {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--brown);
+}
+
+.readout dd.off {
+  color: var(--red);
+}
+
+/* The coop the birds are coming out of, once chosen */
+.from-coop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.from-coop > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.from-coop small {
+  font-size: 0.75rem;
+  color: var(--brown-soft);
+}
+
+.from-coop strong {
+  font-size: 1rem;
+  color: var(--brown);
+  overflow-wrap: anywhere;
+}
+
+/* The boxes of birds weighed so far, each a card of its own */
+.box-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.box-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.box-list li > div {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.box-list strong {
+  font-size: 0.98rem;
+  color: var(--brown);
+}
+
+.box-list small {
+  font-size: 0.78rem;
+  color: var(--brown-soft);
+  overflow-wrap: anywhere;
+}
+
+.box-list em {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: 40px;
+  background: var(--orange-soft);
+  color: var(--orange);
+  font-size: 0.75rem;
+  font-style: normal;
+  font-weight: 700;
+}
+
+/* Everything weighed so far, added up */
+.tally {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 0;
+  padding: 12px 8px;
+  border-radius: 16px;
+  background: linear-gradient(120deg, var(--orange), var(--orange-light));
+  color: #fff;
+  text-align: center;
+}
+
+.tally dt {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+.tally dd {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+/* What is paid and what is still owed on a bill, side by side: green once nothing is owed */
+.pay-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--green-soft);
+  color: var(--green);
+  text-align: center;
+}
+
+.pay-summary.due {
+  background: #fdecea;
+  color: var(--red);
+}
+
+.pay-summary dt {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pay-summary dd {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+/* Back and Next at the foot of a page of the form: they stay on screen, above the
+   tab bar, however long the page is */
+.form-nav {
+  position: sticky;
+  bottom: calc(var(--tab-bar-height) + env(safe-area-inset-bottom) + 6px);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 -16px -18px;
+  padding: 12px 16px 14px;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 20px 20px;
+  background: #fff;
+  box-shadow: 0 -14px 24px -20px rgba(65, 64, 66, 0.5);
+}
+
+.form-nav > div {
+  display: flex;
+  gap: 10px;
+}
+
+.form-nav button {
+  min-height: 54px;
+  font-size: 1rem;
+}
+
+.form-nav .secondary {
+  padding: 0 20px;
+}
+
+.form-nav .primary {
+  flex: 1;
+}
+
 .hint {
   margin: -4px 0 0;
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--orange);
+}
+
+/* A numbered row of a list: the text fills the space between the number and the link */
+.recent-list li > .set-no + div {
+  flex: 1;
+  min-width: 0;
+}
+
+.hint.ok {
+  color: var(--green);
 }
 
 .error {
@@ -1050,6 +1594,15 @@ dt {
   border-color: var(--orange);
   background: var(--orange);
   color: #fff;
+}
+
+/* Answers too long to sit side by side: one under the other */
+.choice.stack {
+  flex-direction: column;
+}
+
+.choice.stack button {
+  flex: none;
 }
 
 /* A button that opens a file or camera picker: the real input is kept out of sight */

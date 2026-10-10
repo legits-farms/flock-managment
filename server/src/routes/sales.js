@@ -21,6 +21,7 @@ const PAYMENT_MODES = ['cash', 'upi', 'bank'];
 // Photos of one weighed set, and of a whole sale. Keeps a request under the JSON body limit.
 const MAX_SET_PHOTOS = 2;
 const MAX_SALE_PHOTOS = 8;
+const MAX_SALE_ITEMS = 20;
 
 const round = (value, places) => Number(value.toFixed(places));
 
@@ -247,6 +248,7 @@ router.post('/', async (req, res, next) => {
         // A coop without its own farm is on the batch's farm
         farm: coop.farm || batch.shiftToFarm || '',
         ...(raw.gender && { gender: raw.gender }),
+        boxNo: String(raw.boxNo ?? '').trim().slice(0, 20),
         birds,
         boxes: parseCount(raw.boxes, 'Boxes'),
         boxWeightEmpty,
@@ -304,7 +306,33 @@ router.post('/', async (req, res, next) => {
     const femaleBill = round((perPiece ? femaleBirds : femaleWeightKg) * femaleRate, 2);
     const boxBill = round(boxQty * boxRate, 2);
 
-    const amount = round(birdBill + maleBill + femaleBill + boxBill, 2);
+    // Other things on the same bill, e.g. eggs
+    const items = (Array.isArray(req.body.items) ? req.body.items : []).map((raw) => {
+      const itemName = String(raw?.name ?? '').trim().slice(0, 60);
+      if (!itemName) throw badRequest('Enter the name of every item');
+      const qty = parseAmount(raw.qty, 'Item quantity');
+      if (qty <= 0) throw badRequest(`Enter the quantity of ${itemName}`);
+      const rate = parseAmount(raw.rate, 'Item rate');
+      const unit = String(raw.unit ?? '').trim().slice(0, 12);
+      return { name: itemName, unit, qty, rate, amount: round(qty * rate, 2) };
+    });
+    if (items.length > MAX_SALE_ITEMS) {
+      throw badRequest(`A sale can have up to ${MAX_SALE_ITEMS} items`);
+    }
+    const itemBill = round(items.reduce((sum, item) => sum + item.amount, 0), 2);
+
+    // A discount in rupees, or as a percentage of the bill before it
+    const subtotal = round(birdBill + maleBill + femaleBill + boxBill + itemBill, 2);
+    const discountType = req.body.discount?.type === 'percent' ? 'percent' : 'amount';
+    const discountValue = parseAmount(req.body.discount?.value, 'Discount');
+    if (discountType === 'percent' && discountValue > 100) {
+      throw badRequest('The discount cannot be more than 100%');
+    }
+    const discount =
+      discountType === 'percent' ? round((subtotal * discountValue) / 100, 2) : discountValue;
+    if (discount > subtotal) throw badRequest('The discount cannot be more than the bill');
+
+    const amount = round(subtotal - discount, 2);
 
     // The sale and the coops' sold counts are saved together or not at all
     const [sale] = await prisma.$transaction([
@@ -346,6 +374,11 @@ router.post('/', async (req, res, next) => {
           maleBill,
           femaleBill,
           boxBill,
+          items,
+          itemBill,
+          discountType,
+          discountValue,
+          discount,
           amount,
           ...createdBy(actor(req)),
         },

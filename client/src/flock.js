@@ -246,6 +246,9 @@ export function saleTotals({
   boxMode,
   boxQty,
   boxRate,
+  items = [],
+  discountType,
+  discountValue,
 }) {
   const total = (field) => sets.reduce((sum, set) => sum + (set[field] || 0), 0);
   const rupees = (value) => Number(value.toFixed(2));
@@ -259,6 +262,14 @@ export function saleTotals({
   const maleBill = perPiece ? rupees(maleBirds * (Number(maleRate) || 0)) : 0;
   const femaleBill = perPiece ? rupees(femaleBirds * (Number(femaleRate) || 0)) : 0;
   const boxBill = boxMode === 'buy' ? rupees((Number(boxQty) || 0) * (Number(boxRate) || 0)) : 0;
+  // Other things on the same bill, e.g. eggs
+  const itemBill = rupees(items.reduce((sum, item) => sum + rupees(item.qty * item.rate), 0));
+  const subtotal = rupees(birdBill + maleBill + femaleBill + boxBill + itemBill);
+  // A discount in rupees, or as a percentage of the bill before it
+  const discount =
+    discountType === 'percent'
+      ? rupees((subtotal * (Number(discountValue) || 0)) / 100)
+      : rupees(Number(discountValue) || 0);
   return {
     birds,
     maleBirds,
@@ -269,7 +280,10 @@ export function saleTotals({
     maleBill,
     femaleBill,
     boxBill,
-    amount: rupees(birdBill + maleBill + femaleBill + boxBill),
+    itemBill,
+    subtotal,
+    discount,
+    amount: rupees(Math.max(0, subtotal - discount)),
   };
 }
 

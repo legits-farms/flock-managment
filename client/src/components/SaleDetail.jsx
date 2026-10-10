@@ -146,6 +146,7 @@ export default function SaleDetail({ sale, onBack, onOpenBatch }) {
                   {formatNumber(set.birds)} birds · {formatKg(set.weightKg)}
                 </strong>
                 <small>
+                  {set.boxNo && `Box ${set.boxNo} · `}
                   {set.coopName} ·{' '}
                   {set.batch ? (
                     <button
@@ -194,6 +195,26 @@ export default function SaleDetail({ sale, onBack, onOpenBatch }) {
                 </small>
               </span>
               <b>{formatRupees(sale.boxBill)}</b>
+            </li>
+          )}
+          {(sale.items ?? []).map((item, i) => (
+            <li key={i}>
+              <span>
+                {item.name}
+                <small>
+                  {formatNumber(item.qty)} {item.unit} × {formatRupees(item.rate)}
+                </small>
+              </span>
+              <b>{formatRupees(item.amount)}</b>
+            </li>
+          ))}
+          {sale.discount > 0 && (
+            <li>
+              <span>
+                Discount
+                {sale.discountType === 'percent' && <small>{sale.discountValue}%</small>}
+              </span>
+              <b>− {formatRupees(sale.discount)}</b>
             </li>
           )}
           <li className="total">
