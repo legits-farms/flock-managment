@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "SaleSet" ADD COLUMN     "femaleBirds" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "maleBirds" INTEGER NOT NULL DEFAULT 0;

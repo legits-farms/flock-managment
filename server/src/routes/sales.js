@@ -9,6 +9,8 @@ import { parseDate, parseId, text } from '../validate.js';
 const router = Router();
 
 const GENDERS = ['male', 'female'];
+// Billed on the weight of the birds, or at a price for each male and each female
+const BILL_BY = ['kg', 'piece'];
 // Whose boxes the birds left in: the customer's own, ours on loan, or ours sold with the birds
 const BOX_MODES = ['own', 'borrow', 'buy'];
 
@@ -81,6 +83,34 @@ function parsePhone(value) {
   else if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
   if (!/^[6-9]\d{9}$/.test(digits)) throw badRequest('Enter a valid 10-digit mobile number');
   return digits;
+}
+
+// A GST number as written on an invoice: "27abcde1234f1z5" -> "27ABCDE1234F1Z5".
+// May be left empty.
+function parseGstin(value) {
+  const gstin = text(value).replace(/\s/g, '').toUpperCase();
+  if (gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/.test(gstin)) {
+    throw badRequest('Enter a valid 15-character GST number');
+  }
+  return gstin;
+}
+
+// What the customer asked for, sent as `requirement`: { birds, breed, avgWeightKg }.
+// Each may be left empty. Resolves to the requirement columns of a sale.
+function parseRequirement(raw = {}) {
+  const given = (value) => value != null && value !== '';
+  const requiredBreed = text(raw.breed);
+  if (requiredBreed.length > 40) throw badRequest('The breed required is too long');
+
+  const requiredBirds = given(raw.birds) ? Number(raw.birds) : null;
+  if (requiredBirds !== null && (!Number.isInteger(requiredBirds) || requiredBirds < 1)) {
+    throw badRequest('Birds required must be a whole number of at least 1');
+  }
+  const requiredAvgKg = given(raw.avgWeightKg) ? Number(raw.avgWeightKg) : null;
+  if (requiredAvgKg !== null && (!Number.isFinite(requiredAvgKg) || requiredAvgKg <= 0)) {
+    throw badRequest('Average weight required must be more than 0');
+  }
+  return { requiredBirds, requiredBreed, requiredAvgKg };
 }
 
 // The n-th of something, from the address: a whole number from 0, or null
@@ -157,6 +187,10 @@ router.post('/', async (req, res, next) => {
     const name = String(customer?.name ?? '').trim();
     if (!name) throw badRequest('Customer name is required');
     const phone = parsePhone(customer?.phone);
+    const business = text(customer?.business);
+    if (business.length > 80) throw badRequest('Business name is too long');
+    const gstin = parseGstin(customer?.gstin);
+    const requirement = parseRequirement(req.body.requirement);
     const date = parseDate(req.body.date, 'Sale date is required');
 
     if (!Array.isArray(req.body.sets) || req.body.sets.length === 0) {
@@ -178,7 +212,8 @@ router.post('/', async (req, res, next) => {
       const batch = batches.get(batchId);
       const coop = batch.coops.find((other) => other.id === raw.coopId);
       if (!coop) throw badRequest('Select the coop of every set');
-      // The gender is optional: a sale need not be split into male and female
+      // An app opened before males and females were counted for the whole sale
+      // sends a gender for each set
       if (raw.gender && !GENDERS.includes(raw.gender)) {
         throw badRequest('Select male or female for the set');
       }
@@ -232,22 +267,41 @@ router.post('/', async (req, res, next) => {
       boxMode === 'borrow' ? parseCount(req.body.boxReturned, 'Boxes returned') : 0;
     if (boxReturned > boxQty) throw badRequest('Boxes returned cannot be more than boxes given');
 
-    const ratePerKg = parseAmount(req.body.ratePerKg, 'Rate per kg');
-    const maleRate = parseAmount(req.body.maleRate, 'Male rate');
-    const femaleRate = parseAmount(req.body.femaleRate, 'Female rate');
+    const billBy = req.body.billBy || 'kg';
+    if (!BILL_BY.includes(billBy)) throw badRequest('Select billing per kg or per piece');
+    const perPiece = billBy === 'piece';
 
-    // Each gender is billed on its own weight at its own rate per kg, and the
-    // sets without a gender (`undefined`) at the plain rate
+    // Once every set is weighed, how many of the birds are male and how many female
+    const counted = req.body.maleBirds != null || req.body.femaleBirds != null;
+    if (perPiece && !counted) throw badRequest('Enter the number of males and females');
+    const males = counted ? parseCount(req.body.maleBirds, 'No. of males') : 0;
+    const females = counted ? parseCount(req.body.femaleBirds, 'No. of females') : 0;
+    const birds = sets.reduce((sum, set) => sum + set.birds, 0);
+    if (counted && males + females !== birds) {
+      throw badRequest(`The males and females must add up to the ${birds} birds in the sets`);
+    }
+
+    const ratePerKg = perPiece ? 0 : parseAmount(req.body.ratePerKg, 'Rate per kg');
+    const maleRate = parseAmount(req.body.maleRate, perPiece ? 'Male rate per piece' : 'Male rate');
+    const femaleRate = parseAmount(
+      req.body.femaleRate,
+      perPiece ? 'Female rate per piece' : 'Female rate'
+    );
+
+    // Per piece, every male is billed at one price and every female at another,
+    // whatever they weigh. Per kg, the sets are billed on their weight at the plain
+    // rate; a set of an older app that is all male or all female (`gender`) is
+    // billed on its own weight at its gender's rate per kg.
     const total = (gender, field) =>
       sets.filter((set) => set.gender === gender).reduce((sum, set) => sum + set[field], 0);
     const plainWeightKg = round(total(undefined, 'weightKg'), 3);
-    const birdBill = round(plainWeightKg * ratePerKg, 2);
-    const maleBirds = total('male', 'birds');
-    const femaleBirds = total('female', 'birds');
+    const birdBill = perPiece ? 0 : round(plainWeightKg * ratePerKg, 2);
+    const maleBirds = counted ? males : total('male', 'birds');
+    const femaleBirds = counted ? females : total('female', 'birds');
     const maleWeightKg = round(total('male', 'weightKg'), 3);
     const femaleWeightKg = round(total('female', 'weightKg'), 3);
-    const maleBill = round(maleWeightKg * maleRate, 2);
-    const femaleBill = round(femaleWeightKg * femaleRate, 2);
+    const maleBill = round((perPiece ? maleBirds : maleWeightKg) * maleRate, 2);
+    const femaleBill = round((perPiece ? femaleBirds : femaleWeightKg) * femaleRate, 2);
     const boxBill = round(boxQty * boxRate, 2);
 
     const amount = round(birdBill + maleBill + femaleBill + boxBill, 2);
@@ -260,9 +314,13 @@ router.post('/', async (req, res, next) => {
           customerName: name,
           customerPhone: phone,
           customerAddress: text(customer?.address),
+          customerBusiness: business,
+          customerGstin: gstin,
+          ...requirement,
           sets: {
             create: sets.map(({ photos, ...set }) => ({ ...set, photos: { create: photos } })),
           },
+          billBy,
           ratePerKg,
           maleRate,
           femaleRate,
@@ -278,7 +336,7 @@ router.post('/', async (req, res, next) => {
             .filter((person) => person.name),
           notes: text(req.body.notes),
           ...parsePayment(req.body.payment, amount),
-          birds: total(undefined, 'birds') + maleBirds + femaleBirds,
+          birds,
           maleBirds,
           femaleBirds,
           weightKg: round(plainWeightKg + maleWeightKg + femaleWeightKg, 3),

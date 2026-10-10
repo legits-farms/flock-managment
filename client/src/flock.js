@@ -1,5 +1,8 @@
 // Bird-count helpers shared by the tabs
 
+// The breeds kept on the farms
+export const BREEDS = ['Sonali', 'Kadaknath', 'Aseel', 'Fayoumi', 'Quail'];
+
 export const formatNumber = (value) => Number(value).toLocaleString('en-IN');
 
 // A bird's weight, given in grams: "850 g", or "1.25 kg" from a kilo on
@@ -204,42 +207,69 @@ export const setWeightKg = (set) =>
     Math.max(0, (Number(set.boxWeightGross) || 0) - (Number(set.boxWeightEmpty) || 0)).toFixed(3),
   );
 
-// What one weighed set of a saved sale was billed at: its weight at the sale's
-// rate per kg, or at its gender's rate when the set has one
+// What one weighed set of a saved sale was billed at. Per piece: its share of
+// what the sale's males and females came to. Per kg: its weight at the sale's rate per kg, or at
+// its gender's rate when the set has one.
 export const saleSetBill = (sale, set) =>
-  set.weightKg *
-  (set.gender === 'female'
-    ? sale.femaleRate
-    : set.gender === 'male'
-      ? sale.maleRate
-      : sale.ratePerKg);
+  sale.billBy === 'piece'
+    ? // The males and females are counted for the whole sale, so a set takes its share by birds
+      (sale.birds > 0 ? set.birds / sale.birds : 0) * (sale.maleBill + sale.femaleBill)
+    : set.weightKg *
+      (set.gender === 'female'
+        ? sale.femaleRate
+        : set.gender === 'male'
+          ? sale.maleRate
+          : sale.ratePerKg);
 
-// What a sale comes to. Males and females are each billed on their own weight
-// at their own rate per kg, plus any boxes bought. Matches the sums in
+// How many males and females a sale holds, e.g. "120 male · 80 female"; '' when
+// they were not counted
+export const genderCounts = (sale) =>
+  [
+    sale.maleBirds > 0 && `${formatNumber(sale.maleBirds)} male`,
+    sale.femaleBirds > 0 && `${formatNumber(sale.femaleBirds)} female`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+// What a sale comes to, plus any boxes bought. Billed per kg (`billBy` 'kg') it
+// is the weight of every set at one rate per kg; per piece ('piece') every male
+// at one price and every female at another, as counted for the whole sale. Matches the sums in
 // server/src/routes/sales.js.
-export function saleTotals({ sets, maleRate, femaleRate, boxMode, boxQty, boxRate }) {
-  const of = (gender, rate) => {
-    const own = sets.filter((set) => set.gender === gender);
-    const birds = own.reduce((sum, set) => sum + set.birds, 0);
-    const weightKg = Number(own.reduce((sum, set) => sum + setWeightKg(set), 0).toFixed(3));
-    return {
-      birds,
-      weightKg,
-      avgKg: birds > 0 ? weightKg / birds : 0,
-      bill: Number((weightKg * (Number(rate) || 0)).toFixed(2)),
-    };
-  };
-  const male = of('male', maleRate);
-  const female = of('female', femaleRate);
-  const boxBill =
-    boxMode === 'buy' ? Number(((Number(boxQty) || 0) * (Number(boxRate) || 0)).toFixed(2)) : 0;
+export function saleTotals({
+  sets,
+  maleBirds: males,
+  femaleBirds: females,
+  billBy,
+  ratePerKg,
+  maleRate,
+  femaleRate,
+  boxMode,
+  boxQty,
+  boxRate,
+}) {
+  const total = (field) => sets.reduce((sum, set) => sum + (set[field] || 0), 0);
+  const rupees = (value) => Number(value.toFixed(2));
+  const perPiece = billBy === 'piece';
+  const birds = total('birds');
+  // Counted once all the sets are weighed
+  const maleBirds = Number(males) || 0;
+  const femaleBirds = Number(females) || 0;
+  const weightKg = Number(sets.reduce((sum, set) => sum + setWeightKg(set), 0).toFixed(3));
+  const birdBill = perPiece ? 0 : rupees(weightKg * (Number(ratePerKg) || 0));
+  const maleBill = perPiece ? rupees(maleBirds * (Number(maleRate) || 0)) : 0;
+  const femaleBill = perPiece ? rupees(femaleBirds * (Number(femaleRate) || 0)) : 0;
+  const boxBill = boxMode === 'buy' ? rupees((Number(boxQty) || 0) * (Number(boxRate) || 0)) : 0;
   return {
-    male,
-    female,
+    birds,
+    maleBirds,
+    femaleBirds,
+    weightKg,
+    avgKg: birds > 0 ? weightKg / birds : 0,
+    birdBill,
+    maleBill,
+    femaleBill,
     boxBill,
-    birds: male.birds + female.birds,
-    weightKg: Number((male.weightKg + female.weightKg).toFixed(3)),
-    amount: Number((male.bill + female.bill + boxBill).toFixed(2)),
+    amount: rupees(birdBill + maleBill + femaleBill + boxBill),
   };
 }
 

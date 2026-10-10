@@ -263,8 +263,20 @@ model Sale {
   customerName     String
   customerPhone    String
   customerAddress  String    @default("")
+  // The customer's business and its GST number (GSTIN), when they have one
+  customerBusiness String    @default("")
+  customerGstin    String    @default("")
+  // What the customer asked for, noted before the birds are weighed: how many
+  // birds, of which breed, and at what average weight each. Any may be left out.
+  requiredBirds    Int?
+  requiredBreed    String    @default("")
+  requiredAvgKg    Float?
   sets             SaleSet[]
-  // Price per kg of the sets without a gender; the two below are for those with one
+  // kg | piece. Per kg the birds are billed on their weight at ratePerKg; per
+  // piece every male at maleRate and every female at femaleRate
+  billBy           String    @default("kg")
+  // Price per kg. The two below are the price of one male and one female when
+  // billed per piece (in older sales, the price per kg of all-male and all-female sets)
   ratePerKg        Float     @default(0)
   maleRate         Float     @default(0)
   femaleRate       Float     @default(0)
@@ -290,7 +302,8 @@ model Sale {
   paymentProof     Bytes?
   paymentProofType String?
   hasProof         Boolean   @default(false)
-  // Worked out from the sets and rates when the sale is saved
+  // Worked out from the sets and rates when the sale is saved, except for the
+  // males and females, which are counted once all the sets are weighed
   birds            Int
   maleBirds        Int       @default(0)
   femaleBirds      Int       @default(0)
@@ -322,7 +335,8 @@ model SaleSet {
   coopId         String
   coopName       String
   farm           String  @default("")
-  // male | female. Left out while sales are not split into male and female
+  // male | female. Only on sets of sales made while each set was all male or all
+  // female and billed at its own rate
   gender         String?
   birds          Int
   boxes          Int     @default(0)

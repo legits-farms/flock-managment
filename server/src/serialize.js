@@ -83,7 +83,18 @@ export function recordJson({
 export const saleJson = (sale) => ({
   _id: sale.id,
   date: sale.date,
-  customer: { name: sale.customerName, phone: sale.customerPhone, address: sale.customerAddress },
+  customer: {
+    name: sale.customerName,
+    phone: sale.customerPhone,
+    address: sale.customerAddress,
+    business: sale.customerBusiness,
+    gstin: sale.customerGstin,
+  },
+  requirement: {
+    birds: sale.requiredBirds ?? undefined,
+    breed: sale.requiredBreed,
+    avgWeightKg: sale.requiredAvgKg ?? undefined,
+  },
   sets: sale.sets.map((set) => ({
     batch: set.batch ? batchRef(set.batch) : set.batchId,
     coopId: set.coopId,
@@ -97,6 +108,7 @@ export const saleJson = (sale) => ({
     weightKg: set.weightKg,
     photos: set.photos.map(photoJson),
   })),
+  billBy: sale.billBy,
   ratePerKg: sale.ratePerKg,
   maleRate: sale.maleRate,
   femaleRate: sale.femaleRate,
