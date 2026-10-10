@@ -10,6 +10,8 @@ const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 const emptyItem = () => ({ feedType: '', quantityKg: '', ratePerKg: '' });
 
+const emptyCharge = () => ({ label: '', amount: '' });
+
 const itemCost = (item) => (Number(item.quantityKg) || 0) * (Number(item.ratePerKg) || 0);
 
 // Form for feed bought into the store, one or more feed types at a time.
@@ -19,16 +21,25 @@ const itemCost = (item) => (Number(item.quantityKg) || 0) * (Number(item.ratePer
 export default function FeedPurchaseForm({ addedFeedTypes, onFeedTypes, onSaved, onCancel }) {
   const [date, setDate] = useState(today);
   const [items, setItems] = useState(() => [emptyItem()]);
+  // Paid on top of the feed itself: shipment, transport and the like
+  const [charges, setCharges] = useState([]);
   const [feedCompany, setFeedCompany] = useState('');
   const [remarks, setRemarks] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   const feedTypes = [...FEED_TYPES, ...addedFeedTypes];
-  const amount = items.reduce((sum, item) => sum + itemCost(item), 0);
+  const feedAmount = items.reduce((sum, item) => sum + itemCost(item), 0);
+  const extra = charges.reduce((sum, charge) => sum + (Number(charge.amount) || 0), 0);
+  const amount = feedAmount + extra;
 
   const setItem = (index, field) => (value) =>
     setItems((prev) => prev.map((item, at) => (at === index ? { ...item, [field]: value } : item)));
+
+  const setCharge = (index, field) => (e) =>
+    setCharges((prev) =>
+      prev.map((charge, at) => (at === index ? { ...charge, [field]: e.target.value } : charge)),
+    );
 
   async function saveFeedType(name) {
     if (feedTypes.some((other) => sameName(other, name))) {
@@ -58,6 +69,10 @@ export default function FeedPurchaseForm({ addedFeedTypes, onFeedTypes, onSaved,
             feedType: item.feedType,
             quantityKg: Number(item.quantityKg),
             ratePerKg: Number(item.ratePerKg),
+          })),
+          charges: charges.map((charge) => ({
+            label: charge.label,
+            amount: Number(charge.amount),
           })),
         }),
       );
@@ -161,10 +176,65 @@ export default function FeedPurchaseForm({ addedFeedTypes, onFeedTypes, onSaved,
           + Add Another Feed Type
         </button>
 
+        {charges.length > 0 && (
+          <fieldset className="group">
+            <legend>Extra Charges</legend>
+
+            {charges.map((charge, i) => (
+              <div className="field-row" key={i}>
+                <label className="field">
+                  <span>Charge</span>
+                  <input
+                    type="text"
+                    value={charge.label}
+                    onChange={setCharge(i, 'label')}
+                    placeholder="Shipment, transport…"
+                    maxLength="40"
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>Amount (₹)</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0.01"
+                    step="any"
+                    value={charge.amount}
+                    onChange={setCharge(i, 'amount')}
+                    placeholder="0"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="link fill"
+                    onClick={() => setCharges((prev) => prev.filter((_, at) => at !== i))}
+                  >
+                    Remove
+                  </button>
+                </label>
+              </div>
+            ))}
+          </fieldset>
+        )}
+
+        <button
+          type="button"
+          className="secondary"
+          onClick={() => setCharges((prev) => [...prev, emptyCharge()])}
+        >
+          + Add Extra Charge
+        </button>
+
         <label className="field">
           <span>Total Cost</span>
           <input type="text" value={formatRupees(amount)} readOnly />
         </label>
+        {extra > 0 && (
+          <p className="hint">
+            Feed {formatRupees(feedAmount)} + extra charges {formatRupees(extra)}
+          </p>
+        )}
 
         <label className="field">
           <span>Remarks</span>

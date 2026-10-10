@@ -19,6 +19,8 @@ model User {
   passwordHash String
   // pending | approved | rejected. A new account can do nothing until the manager approves it
   status       String   @default("pending")
+  // user | admin. Only an admin may date a mortality or add photos from the gallery
+  role         String   @default("user")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -81,22 +83,22 @@ model Batch {
 
 // One batch's birds in one coop
 model Coop {
-  id          String  @id @default(cuid())
+  id          String   @id @default(cuid())
   // Order added to the batch in
-  seq         Int     @default(autoincrement())
+  seq         Int      @default(autoincrement())
   batchId     String
-  batch       Batch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  batch       Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
   name        String
   // Can drop to 0 when every bird is shifted out to another coop
   birds       Int
   // Only set when the coop is on another farm than the batch's own
   farm        String?
   // Created by a shift rather than by allocating the batch's birds
-  fromShift   Boolean @default(false)
+  fromShift   Boolean  @default(false)
   // Birds lost in this coop, added up from registered mortality records
-  mortality   Int     @default(0)
+  mortality   Int      @default(0)
   // Birds sold out of this coop, added up from the sales
-  sold        Int     @default(0)
+  sold        Int      @default(0)
   addedById   String?
   addedByName String?
   createdAt   DateTime @default(now())
@@ -119,8 +121,11 @@ model Photo {
   // The image itself. Left out of normal queries and only loaded by the photo endpoints.
   data          Bytes
   contentType   String       @default("image/jpeg")
-  lat           Float
-  lng           Float
+  // Picked from the gallery by an admin rather than taken live: it has no position,
+  // and capturedAt is when it was added
+  fromGallery   Boolean      @default(false)
+  lat           Float?
+  lng           Float?
   accuracy      Float?
   capturedAt    DateTime
 
@@ -144,6 +149,8 @@ model Mortality {
   coopName      String
   birds         Int
   reason        String
+  // When the birds were lost: when it was entered, unless an admin dated it
+  date          DateTime @default(now())
   photos        Photo[]
   createdById   String?
   createdByName String?
@@ -256,8 +263,20 @@ model Sale {
   customerName     String
   customerPhone    String
   customerAddress  String    @default("")
+  // The customer's business and its GST number (GSTIN), when they have one
+  customerBusiness String    @default("")
+  customerGstin    String    @default("")
+  // What the customer asked for, noted before the birds are weighed: how many
+  // birds, of which breed, and at what average weight each. Any may be left out.
+  requiredBirds    Int?
+  requiredBreed    String    @default("")
+  requiredAvgKg    Float?
   sets             SaleSet[]
-  // Price per kg of the sets without a gender; the two below are for those with one
+  // kg | piece. Per kg the birds are billed on their weight at ratePerKg; per
+  // piece every male at maleRate and every female at femaleRate
+  billBy           String    @default("kg")
+  // Price per kg. The two below are the price of one male and one female when
+  // billed per piece (in older sales, the price per kg of all-male and all-female sets)
   ratePerKg        Float     @default(0)
   maleRate         Float     @default(0)
   femaleRate       Float     @default(0)
@@ -283,7 +302,8 @@ model Sale {
   paymentProof     Bytes?
   paymentProofType String?
   hasProof         Boolean   @default(false)
-  // Worked out from the sets and rates when the sale is saved
+  // Worked out from the sets and rates when the sale is saved, except for the
+  // males and females, which are counted once all the sets are weighed
   birds            Int
   maleBirds        Int       @default(0)
   femaleBirds      Int       @default(0)
@@ -315,7 +335,8 @@ model SaleSet {
   coopId         String
   coopName       String
   farm           String  @default("")
-  // male | female. Left out while sales are not split into male and female
+  // male | female. Only on sets of sales made while each set was all male or all
+  // female and billed at its own rate
   gender         String?
   birds          Int
   boxes          Int     @default(0)
@@ -331,17 +352,21 @@ model SaleSet {
 
 // Feed bought into the store. What the birds are given out of it is in Feed.
 model FeedPurchase {
-  id            String   @id @default(cuid())
-  date          DateTime
-  feedType      String
-  feedCompany   String   @default("")
-  quantityKg    Float
-  ratePerKg     Float
-  // Worked out from the two above, in rupees
-  amount        Float
-  remarks       String   @default("")
-  createdById   String?
-  createdByName String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id               String   @id @default(cuid())
+  date             DateTime
+  feedType         String
+  feedCompany      String   @default("")
+  quantityKg       Float
+  ratePerKg        Float
+  // This feed's share of the purchase's extra charges (shipment, transport, …),
+  // split by weight, and what those charges were for
+  extraCharges     Float    @default(0)
+  extraChargeLabel String   @default("")
+  // Quantity times price plus the extra charges, in rupees
+  amount           Float
+  remarks          String   @default("")
+  createdById      String?
+  createdByName    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }

@@ -51,8 +51,8 @@ const formatDate = (value) =>
 // YYYY-MM-DD in local time, comparable with <input type="date"> values
 const dayOf = (value) => new Date(value).toLocaleDateString('en-CA');
 
-// Mortality is dated by when it was registered; everything else by the day given
-const recordDate = (kind, r) => (kind === 'mortalities' ? r.createdAt : r.date);
+// Mortality entered before it had a date of its own is dated by when it was registered
+const recordDate = (kind, r) => (kind === 'mortalities' ? (r.date ?? r.createdAt) : r.date);
 
 // A shift involves two coops and a sale one per set, the other records one
 const coopsOf = (r) =>

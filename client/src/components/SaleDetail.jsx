@@ -5,6 +5,7 @@ import {
   formatKg,
   formatNumber,
   formatRupees,
+  genderCounts,
 } from '../flock.js';
 import PhotoLink from './PhotoLink.jsx';
 
@@ -30,14 +31,53 @@ export default function SaleDetail({ sale, onBack, onOpenBatch }) {
   const payment = sale.payment ?? { status: 'unpaid', amountPaid: 0 };
   const balance = Math.max(0, Number((sale.amount - payment.amountPaid).toFixed(2)));
 
+  // What the customer asked for, the parts that were noted
+  const asked = sale.requirement ?? {};
+  const required = [
+    asked.birds && `${formatNumber(asked.birds)} birds`,
+    asked.breed,
+    asked.avgWeightKg && `avg ${formatKg(asked.avgWeightKg)} each`,
+  ].filter(Boolean);
+
+  // Each line of the bill: [label, how it was worked out, rupees, whether it is on the bill]
+  const perKg = (weightKg, rate) => `${formatKg(weightKg)} × ${formatRupees(rate)}/kg`;
+  const perPiece = (birds, rate) => `${formatNumber(birds)} × ${formatRupees(rate)}/pc`;
   // Sets without a gender are billed together; those with one, per gender
   const plain = sale.sets.filter((set) => !set.gender);
   const sum = (field) => plain.reduce((total, set) => total + set[field], 0);
-  const bills = [
-    ['Birds', sum('weightKg'), sale.ratePerKg, sale.birdBill, sum('birds')],
-    ['Male birds', sale.maleWeightKg, sale.maleRate, sale.maleBill, sale.maleBirds],
-    ['Female birds', sale.femaleWeightKg, sale.femaleRate, sale.femaleBill, sale.femaleBirds],
-  ].filter(([, , , , birds]) => birds > 0);
+  const bills = (
+    sale.billBy === 'piece'
+      ? [
+          ['Male birds', perPiece(sale.maleBirds, sale.maleRate), sale.maleBill, sale.maleBirds],
+          [
+            'Female birds',
+            perPiece(sale.femaleBirds, sale.femaleRate),
+            sale.femaleBill,
+            sale.femaleBirds,
+          ],
+        ]
+      : [
+          [
+            'Birds',
+            [perKg(sum('weightKg'), sale.ratePerKg), genderCounts(sale)].filter(Boolean).join(' · '),
+            sale.birdBill,
+            sum('birds'),
+          ],
+          // Only in older sales, where a set was all male or all female at its own rate
+          [
+            'Male birds',
+            perKg(sale.maleWeightKg, sale.maleRate),
+            sale.maleBill,
+            sale.sets.some((set) => set.gender === 'male'),
+          ],
+          [
+            'Female birds',
+            perKg(sale.femaleWeightKg, sale.femaleRate),
+            sale.femaleBill,
+            sale.sets.some((set) => set.gender === 'female'),
+          ],
+        ]
+  ).filter(([, , , shown]) => shown);
 
   return (
     <div className="manage">
@@ -72,6 +112,8 @@ export default function SaleDetail({ sale, onBack, onOpenBatch }) {
         <div className="sale-customer">
           <div>
             <strong>{sale.customer.name}</strong>
+            {sale.customer.business && <small>{sale.customer.business}</small>}
+            {sale.customer.gstin && <small>GST {sale.customer.gstin}</small>}
             <small>{sale.customer.phone}</small>
             {sale.customer.address && <small>{sale.customer.address}</small>}
           </div>
@@ -80,6 +122,13 @@ export default function SaleDetail({ sale, onBack, onOpenBatch }) {
           </a>
         </div>
       </section>
+
+      {required.length > 0 && (
+        <section className="card">
+          <h2 className="eyebrow">Customer's Requirement</h2>
+          <p>{required.join(' · ')}</p>
+        </section>
+      )}
 
       <section className="card">
         <h2 className="eyebrow">
@@ -127,13 +176,11 @@ export default function SaleDetail({ sale, onBack, onOpenBatch }) {
       <section className="card">
         <h2 className="eyebrow">Bill</h2>
         <ul className="bill">
-          {bills.map(([label, weightKg, rate, bill]) => (
+          {bills.map(([label, detail, bill]) => (
             <li key={label}>
               <span>
                 {label}
-                <small>
-                  {formatKg(weightKg)} × {formatRupees(rate)}/kg
-                </small>
+                <small>{detail}</small>
               </span>
               <b>{formatRupees(bill)}</b>
             </li>

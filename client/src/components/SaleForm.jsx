@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { createSale } from '../api.js';
 import {
   BOX_MODE_LABELS,
+  BREEDS,
   PAYMENT_MODE_LABELS,
   PAYMENT_STATUS_LABELS,
   coopGroups,
@@ -42,7 +43,11 @@ async function shrinkImage(file) {
   return canvas.toDataURL('image/jpeg', 0.8);
 }
 
-const GENDER_LABELS = { male: 'Male', female: 'Female' };
+
+// A GST number (GSTIN), e.g. 27ABCDE1234F1Z5
+const GSTIN = /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/;
+
+const BILL_BY_LABELS = { kg: 'Per kg', piece: 'Per piece' };
 
 const NO_WEIGHING = { birds: '', boxes: '', boxWeightEmpty: '', boxWeightGross: '' };
 
@@ -51,8 +56,9 @@ const MAX_SET_PHOTOS = 2;
 const MAX_SALE_PHOTOS = 8;
 
 // Dashboard form for selling live birds. The birds are weighed out in sets, each
-// out of one coop and either all male or all female, and billed per kg at a
-// rate for males and one for females.
+// out of one coop. Once they all are, the males and females are counted, and the
+// sale is billed either per kg at one rate or per piece at a price for a male
+// and one for a female.
 export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
   // Only coops that still hold live birds can be sold from
   const groups = coopGroups(batches)
@@ -66,12 +72,15 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
   const [customer, setCustomer] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [business, setBusiness] = useState('');
+  const [gstin, setGstin] = useState('');
+  // What the customer asked for, noted before the birds are weighed
+  const [requirement, setRequirement] = useState({ birds: '', breed: '', avgWeightKg: '' });
   const [date, setDate] = useState(today);
   const [notes, setNotes] = useState('');
 
   // The sets weighed so far, and the one being entered
   const [sets, setSets] = useState([]);
-  const [gender, setGender] = useState('male');
   const [farm, setFarm] = useState(farms.length === 1 ? farms[0] : null);
   const [coopKey, setCoopKey] = useState('');
   const [batchId, setBatchId] = useState('');
@@ -79,6 +88,13 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
   // Live photos of the set being entered
   const [photos, setPhotos] = useState([]);
 
+  // How many of the birds in all the sets are male and how many female
+  const [maleBirds, setMaleBirds] = useState('');
+  const [femaleBirds, setFemaleBirds] = useState('');
+
+  // 'kg': on the weight, at one rate. 'piece': a price for each male and each female.
+  const [billBy, setBillBy] = useState('kg');
+  const [ratePerKg, setRatePerKg] = useState('');
   const [maleRate, setMaleRate] = useState('');
   const [femaleRate, setFemaleRate] = useState('');
   const [boxMode, setBoxMode] = useState('own');
@@ -118,7 +134,18 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
     MAX_SALE_PHOTOS - sets.reduce((sum, set) => sum + set.photos.length, 0),
   );
 
-  const totals = saleTotals({ sets, maleRate, femaleRate, boxMode, boxQty, boxRate });
+  const totals = saleTotals({
+    sets,
+    maleBirds,
+    femaleBirds,
+    billBy,
+    ratePerKg,
+    maleRate,
+    femaleRate,
+    boxMode,
+    boxQty,
+    boxRate,
+  });
   const boxesOut = Math.max(0, (Number(boxQty) || 0) - (Number(boxReturned) || 0));
   // Rupees received so far, and what is still owed
   const paid =
@@ -137,6 +164,9 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
       setError('Could not read that picture. Please pick another one.');
     }
   }
+
+  const setRequired = (field) => (e) =>
+    setRequirement((prev) => ({ ...prev, [field]: e.target.value }));
 
   const setWeighed = (field) => (e) =>
     setWeighing((prev) => ({ ...prev, [field]: e.target.value }));
@@ -169,7 +199,6 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
     setSets((prev) => [
       ...prev,
       {
-        gender,
         batchId: entry.batch._id,
         batchName: entry.batch.batchName,
         coopId: entry.coop._id,
@@ -197,7 +226,13 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
     if (!/^[6-9]\d{9}$/.test(mobileNumber(phone))) {
       return setError('Enter a valid 10-digit mobile number.');
     }
+    if (gstin && !GSTIN.test(gstin)) return setError('Enter a valid 15-character GST number.');
     if (sets.length === 0) return setError('Record at least one set of birds.');
+    if (totals.maleBirds + totals.femaleBirds !== totals.birds) {
+      return setError(
+        `The males and females must add up to the ${formatNumber(totals.birds)} birds in the sets.`,
+      );
+    }
     if (paymentStatus === 'partial' && !(paid > 0 && paid < totals.amount)) {
       return setError('The amount paid must be more than 0 and less than the total bill.');
     }
@@ -210,12 +245,17 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
     setError('');
     try {
       const saved = await createSale({
-        customer: { name: customer, phone, address },
+        customer: { name: customer, phone, address, business, gstin },
+        requirement,
         date,
         notes,
         sets: sets.map(({ batchName, coopName, ...set }) => set),
-        maleRate: Number(maleRate) || 0,
-        femaleRate: Number(femaleRate) || 0,
+        maleBirds: totals.maleBirds,
+        femaleBirds: totals.femaleBirds,
+        billBy,
+        ...(billBy === 'piece'
+          ? { maleRate: Number(maleRate) || 0, femaleRate: Number(femaleRate) || 0 }
+          : { ratePerKg: Number(ratePerKg) || 0 }),
         boxMode,
         boxQty: Number(boxQty) || 0,
         boxRate: Number(boxRate) || 0,
@@ -287,6 +327,29 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
         </label>
 
         <label className="field">
+          <span>Business Name</span>
+          <input
+            type="text"
+            value={business}
+            onChange={(e) => setBusiness(e.target.value)}
+            placeholder="Optional"
+            maxLength={80}
+          />
+        </label>
+
+        <label className="field">
+          <span>GST Number</span>
+          <input
+            type="text"
+            autoCapitalize="characters"
+            maxLength={15}
+            value={gstin}
+            onChange={(e) => setGstin(e.target.value.replace(/\s/g, '').toUpperCase())}
+            placeholder="Optional · 15 characters"
+          />
+        </label>
+
+        <label className="field">
           <span>Address</span>
           <input
             type="text"
@@ -302,24 +365,43 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
         </label>
 
         <fieldset className="group">
-          <legend>Record a Set</legend>
+          <legend>Customer's Requirement</legend>
 
-          <div className="field">
-            <span>Male or Female</span>
-            <div className="choice" role="group" aria-label="Male or female">
-              {['male', 'female'].map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={gender === value}
-                  className={gender === value ? 'active' : ''}
-                  onClick={() => setGender(value)}
-                >
-                  {GENDER_LABELS[value]}
-                </button>
-              ))}
-            </div>
+          <div className="field-row">
+            <label className="field">
+              <span>Birds Required</span>
+              <input {...whole} min="1" value={requirement.birds} onChange={setRequired('birds')} />
+            </label>
+            <label className="field">
+              <span>Avg Weight (kg)</span>
+              <input
+                {...decimal}
+                value={requirement.avgWeightKg}
+                onChange={setRequired('avgWeightKg')}
+              />
+            </label>
           </div>
+
+          <label className="field">
+            <span>Breed</span>
+            <input
+              type="text"
+              list="sale-breeds"
+              maxLength={40}
+              value={requirement.breed}
+              onChange={setRequired('breed')}
+              placeholder="e.g. Sonali"
+            />
+            <datalist id="sale-breeds">
+              {BREEDS.map((breed) => (
+                <option key={breed} value={breed} />
+              ))}
+            </datalist>
+          </label>
+        </fieldset>
+
+        <fieldset className="group">
+          <legend>Record a Set</legend>
 
           <div className="field">
             <label htmlFor="sale-farm">Farm</label>
@@ -413,7 +495,7 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
           </div>
 
           <button type="button" className="secondary" onClick={addSet}>
-            + Add {GENDER_LABELS[gender]} Set
+            + Add Set
           </button>
 
           {sets.length > 0 && (
@@ -422,8 +504,7 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
                 <li key={i}>
                   <div>
                     <strong>
-                      {GENDER_LABELS[set.gender]} · {formatNumber(set.birds)} birds ·{' '}
-                      {formatKg(setWeightKg(set))}
+                      {formatNumber(set.birds)} birds · {formatKg(setWeightKg(set))}
                     </strong>
                     <small>
                       {set.coopName} · {set.batchName}
@@ -447,14 +528,63 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
 
         <div className="field-row">
           <label className="field">
-            <span>Male Rate per kg (₹)</span>
-            <input {...decimal} value={maleRate} onChange={(e) => setMaleRate(e.target.value)} />
+            <span>No. of Males</span>
+            <input {...whole} value={maleBirds} onChange={(e) => setMaleBirds(e.target.value)} />
           </label>
           <label className="field">
-            <span>Female Rate per kg (₹)</span>
-            <input {...decimal} value={femaleRate} onChange={(e) => setFemaleRate(e.target.value)} />
+            <span>No. of Females</span>
+            <input
+              {...whole}
+              value={femaleBirds}
+              onChange={(e) => setFemaleBirds(e.target.value)}
+            />
           </label>
         </div>
+        {totals.birds > 0 && (
+          <p className="hint">
+            {formatNumber(totals.maleBirds + totals.femaleBirds)} of the{' '}
+            {formatNumber(totals.birds)} birds in the sets counted
+          </p>
+        )}
+
+        <div className="field">
+          <span>Bill By</span>
+          <div className="choice" role="group" aria-label="Bill per kg or per piece">
+            {Object.entries(BILL_BY_LABELS).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={billBy === value}
+                className={billBy === value ? 'active' : ''}
+                onClick={() => setBillBy(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {billBy === 'kg' ? (
+          <label className="field">
+            <span>Rate per kg (₹)</span>
+            <input {...decimal} value={ratePerKg} onChange={(e) => setRatePerKg(e.target.value)} />
+          </label>
+        ) : (
+          <div className="field-row">
+            <label className="field">
+              <span>Male Rate per pc (₹)</span>
+              <input {...decimal} value={maleRate} onChange={(e) => setMaleRate(e.target.value)} />
+            </label>
+            <label className="field">
+              <span>Female Rate per pc (₹)</span>
+              <input
+                {...decimal}
+                value={femaleRate}
+                onChange={(e) => setFemaleRate(e.target.value)}
+              />
+            </label>
+          </div>
+        )}
 
         <fieldset className="group">
           <legend>Boxes / Crates</legend>
@@ -588,22 +718,40 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
 
         {totals.birds > 0 && (
           <ul className="recent-list">
-            {['male', 'female']
-              .filter((value) => totals[value].birds > 0)
-              .map((value) => (
-                <li key={value}>
-                  <div>
-                    <strong>
-                      {GENDER_LABELS[value]} · {formatNumber(totals[value].birds)} birds
-                    </strong>
-                    <small>
-                      {formatKg(totals[value].weightKg)} · avg {formatKg(totals[value].avgKg)} per
-                      bird
-                    </small>
-                  </div>
-                  <span>{formatRupees(totals[value].bill)}</span>
-                </li>
-              ))}
+            {billBy === 'kg' ? (
+              <li>
+                <div>
+                  <strong>
+                    {formatNumber(totals.maleBirds)} male · {formatNumber(totals.femaleBirds)}{' '}
+                    female
+                  </strong>
+                  <small>
+                    {formatKg(totals.weightKg)} × {formatRupees(Number(ratePerKg) || 0)}/kg · avg{' '}
+                    {formatKg(totals.avgKg)} per bird
+                  </small>
+                </div>
+                <span>{formatRupees(totals.birdBill)}</span>
+              </li>
+            ) : (
+              [
+                ['Male', totals.maleBirds, maleRate, totals.maleBill],
+                ['Female', totals.femaleBirds, femaleRate, totals.femaleBill],
+              ]
+                .filter(([, birds]) => birds > 0)
+                .map(([label, birds, rate, bill]) => (
+                  <li key={label}>
+                    <div>
+                      <strong>
+                        {label} · {formatNumber(birds)} birds
+                      </strong>
+                      <small>
+                        {formatNumber(birds)} × {formatRupees(Number(rate) || 0)}/pc
+                      </small>
+                    </div>
+                    <span>{formatRupees(bill)}</span>
+                  </li>
+                ))
+            )}
             {totals.boxBill > 0 && (
               <li>
                 <div>

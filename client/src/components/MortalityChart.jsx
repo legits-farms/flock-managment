@@ -14,7 +14,7 @@ const formatDay = (value) =>
 function dailyTotals(mortalities) {
   const byDay = new Map();
   for (const record of mortalities) {
-    const key = dayKey(record.createdAt);
+    const key = dayKey(record.date ?? record.createdAt);
     byDay.set(key, (byDay.get(key) ?? 0) + record.birds);
   }
 

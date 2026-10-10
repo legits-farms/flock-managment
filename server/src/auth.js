@@ -25,10 +25,10 @@ export async function requireAuth(req, res, next) {
   try {
     const approved = await prisma.user.findFirst({
       where: { id: payload.sub, status: 'approved' },
-      select: { id: true },
+      select: { role: true },
     });
     if (!approved) return res.status(401).json({ message: 'Please log in again' });
-    req.user = { id: payload.sub, name: payload.name };
+    req.user = { id: payload.sub, name: payload.name, isAdmin: approved.role === 'admin' };
     next();
   } catch (err) {
     next(err);

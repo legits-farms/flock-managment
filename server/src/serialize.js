@@ -11,9 +11,14 @@ export const createdBy = (who) => ({ createdById: who?.user, createdByName: who?
 export const addedBy = (who) => ({ addedById: who?.user, addedByName: who?.name });
 
 // Where and when a photo was taken. The image itself is fetched separately.
+// One from the gallery has no position and says so.
 const photoJson = (photo) => ({
-  location: { lat: photo.lat, lng: photo.lng, accuracy: photo.accuracy ?? undefined },
+  location:
+    photo.lat == null
+      ? undefined
+      : { lat: photo.lat, lng: photo.lng, accuracy: photo.accuracy ?? undefined },
   capturedAt: photo.capturedAt,
+  fromGallery: photo.fromGallery || undefined,
 });
 
 const coopJson = (coop) => ({
@@ -78,7 +83,18 @@ export function recordJson({
 export const saleJson = (sale) => ({
   _id: sale.id,
   date: sale.date,
-  customer: { name: sale.customerName, phone: sale.customerPhone, address: sale.customerAddress },
+  customer: {
+    name: sale.customerName,
+    phone: sale.customerPhone,
+    address: sale.customerAddress,
+    business: sale.customerBusiness,
+    gstin: sale.customerGstin,
+  },
+  requirement: {
+    birds: sale.requiredBirds ?? undefined,
+    breed: sale.requiredBreed,
+    avgWeightKg: sale.requiredAvgKg ?? undefined,
+  },
   sets: sale.sets.map((set) => ({
     batch: set.batch ? batchRef(set.batch) : set.batchId,
     coopId: set.coopId,
@@ -92,6 +108,7 @@ export const saleJson = (sale) => ({
     weightKg: set.weightKg,
     photos: set.photos.map(photoJson),
   })),
+  billBy: sale.billBy,
   ratePerKg: sale.ratePerKg,
   maleRate: sale.maleRate,
   femaleRate: sale.femaleRate,

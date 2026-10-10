@@ -73,7 +73,7 @@ router.post('/', async (req, res, next) => {
 
     const reason = requiredText(req.body.reason, 'Reason is required');
     const date = parseDate(req.body.date, 'Shift date is required');
-    const photos = mortality > 0 ? parseEvidence(req.body) : null;
+    const photos = mortality > 0 ? parseEvidence(req.body, req.user) : null;
     const who = actor(req);
     const existing = batch.coops.find(
       (coop) => same(coop.name, coopName) && same(farmOf(coop), farm)
@@ -122,6 +122,7 @@ router.post('/', async (req, res, next) => {
             coopName: from.name,
             birds: mortality,
             reason: `Died during the shift to ${to.name}`,
+            date,
             photos: { create: photos },
             ...createdBy(who),
           },

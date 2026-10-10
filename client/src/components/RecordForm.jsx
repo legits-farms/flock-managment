@@ -22,6 +22,7 @@ import {
 } from '../flock.js';
 import Dropdown from './Dropdown.jsx';
 import OptionSelect from './OptionSelect.jsx';
+import { useIsAdmin } from '../admin.js';
 import PhotoCapture, { evidencePayload } from './PhotoCapture.jsx';
 
 // YYYY-MM-DD in local time, the format <input type="date"> expects
@@ -89,6 +90,7 @@ export default function RecordForm({
   backLabel = 'Dashboard',
 }) {
   const config = FORMS[type];
+  const isAdmin = useIsAdmin();
   // Every farm that has a coop to record against
   const farms = [
     ...new Map(
@@ -196,7 +198,16 @@ export default function RecordForm({
     setError('');
     try {
       const details = {
-        mortality: { birds: Number(birds), type: mortalityType, reason },
+        mortality: {
+          birds: Number(birds),
+          type: mortalityType,
+          reason,
+          // An earlier day picked by an admin, at the time of day it is now
+          ...(isAdmin &&
+            date !== today() && {
+              date: new Date(`${date}T${new Date().toTimeString().slice(0, 8)}`).toISOString(),
+            }),
+        },
         vaccination: {
           birds: Number(birds),
           date,
@@ -313,10 +324,17 @@ export default function RecordForm({
           </>
         )}
 
-        {type !== 'mortality' && (
+        {/* A mortality is dated when it is registered, unless an admin says otherwise */}
+        {(type !== 'mortality' || isAdmin) && (
           <label className="field">
             <span>Date</span>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+            <input
+              type="date"
+              value={date}
+              max={type === 'mortality' ? today() : undefined}
+              onChange={(e) => setDate(e.target.value)}
+              required
+            />
           </label>
         )}
 

@@ -273,6 +273,15 @@ button {
   color: var(--orange);
 }
 
+/* A file input dressed as a secondary button (admin only) */
+.gallery-pick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 10px;
+  cursor: pointer;
+}
+
 /* Batch list */
 
 .batch-list {

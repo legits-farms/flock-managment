@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { AdminContext } from './admin.js';
 import { getBatches, getMe, getOptions, hasToken, logout } from './api.js';
 import { coopGroups, coopsOnFarm } from './flock.js';
 import logo from './assets/logo.webp';
@@ -44,14 +45,16 @@ export default function App() {
   if (!user) return <AuthScreen onAuthenticated={setUser} />;
 
   return (
-    <Flock
-      key={user.id}
-      user={user}
-      onLogout={() => {
-        logout();
-        setUser(null);
-      }}
-    />
+    <AdminContext.Provider value={Boolean(user.isAdmin)}>
+      <Flock
+        key={user.id}
+        user={user}
+        onLogout={() => {
+          logout();
+          setUser(null);
+        }}
+      />
+    </AdminContext.Provider>
   );
 }
 

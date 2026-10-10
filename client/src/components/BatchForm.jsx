@@ -1,12 +1,10 @@
 import { useState } from 'react';
 import { addFarm, createBatch } from '../api.js';
+import { BREEDS } from '../flock.js';
 import Dropdown from './Dropdown.jsx';
 import OptionSelect from './OptionSelect.jsx';
 
-const BREEDS = ['Sonali', 'Kadaknath', 'Aseel', 'Fayoumi', 'Quail'].map((breed) => ({
-  value: breed,
-  label: breed,
-}));
+const BREED_OPTIONS = BREEDS.map((breed) => ({ value: breed, label: breed }));
 
 const AGE_UNITS = [
   { value: 'days', label: 'Days' },
@@ -111,7 +109,7 @@ export default function BatchForm({ farms, onOptions, onRegistered }) {
         <Dropdown
           id="breed"
           value={form.breed}
-          options={BREEDS}
+          options={BREED_OPTIONS}
           onChange={setValue('breed')}
           placeholder="Select breed"
         />

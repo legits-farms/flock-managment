@@ -19,11 +19,14 @@ const formatDateTime = (value) =>
 export default function RecordDetail({ kind, record, onBack, onOpenBatch }) {
   const vaccination = kind === 'vaccinations';
   // Every photo of the record with where and when it was taken, the first one first
-  const photos = [record, ...(record.morePhotos ?? [])].map(({ location, capturedAt }, i) => ({
-    url: `/${kind}/${record._id}/photo${i === 0 ? '' : `/${i}`}`,
-    location,
-    capturedAt,
-  }));
+  const photos = [record, ...(record.morePhotos ?? [])].map(
+    ({ location, capturedAt, fromGallery }, i) => ({
+      url: `/${kind}/${record._id}/photo${i === 0 ? '' : `/${i}`}`,
+      location,
+      capturedAt,
+      fromGallery,
+    }),
+  );
 
   return (
     <div className="manage">
@@ -92,6 +95,10 @@ export default function RecordDetail({ kind, record, onBack, onOpenBatch }) {
                 <dt>Reason</dt>
                 <dd>{record.reason}</dd>
               </div>
+              <div>
+                <dt>Date</dt>
+                <dd>{formatDate(record.date ?? record.createdAt)}</dd>
+              </div>
             </>
           )}
           <div>
@@ -118,7 +125,7 @@ export default function RecordDetail({ kind, record, onBack, onOpenBatch }) {
 }
 
 // One photo of a record, with when and where it was taken
-function RecordPhoto({ url, location, capturedAt }) {
+function RecordPhoto({ url, location, capturedAt, fromGallery }) {
   const [photo, setPhoto] = useState('');
   const [photoFailed, setPhotoFailed] = useState(false);
 
@@ -151,7 +158,8 @@ function RecordPhoto({ url, location, capturedAt }) {
 
       <dl className="batch-details detail">
         <div>
-          <dt>Taken On</dt>
+          {/* A gallery photo is not live: only when it was added is known */}
+          <dt>{fromGallery ? 'Added From Gallery On' : 'Taken On'}</dt>
           <dd>{formatDateTime(capturedAt)}</dd>
         </div>
         {location && (
