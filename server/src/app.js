@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { requireAuth } from './auth.js';
+import { requireAuth, staffOnly, staffOrReadOnly } from './auth.js';
 import { connectDb } from './db.js';
 import authRoutes from './routes/auth.js';
 import batchRoutes from './routes/batches.js';
@@ -15,6 +15,7 @@ import {
 } from './routes/records.js';
 import saleRoutes from './routes/sales.js';
 import shiftRoutes from './routes/shifts.js';
+import userRoutes from './routes/users.js';
 
 const app = express();
 app.use(cors());
@@ -38,16 +39,19 @@ app.use('/api', async (req, res, next) => {
 });
 
 app.use('/api/auth', authRoutes);
-// Everything below needs a logged-in user
-app.use('/api/options', requireAuth, optionRoutes);
-app.use('/api/batches', requireAuth, batchRoutes);
+// Everything below needs a logged-in user. A security guard gets mortality, and
+// the batches and their coops to register it against, but nothing else.
 app.use('/api/mortalities', requireAuth, mortalityRouter);
-app.use('/api/vaccinations', requireAuth, vaccinationRouter);
-app.use('/api/feeds', requireAuth, feedRouter);
-app.use('/api/weights', requireAuth, weightRouter);
-app.use('/api/shifts', requireAuth, shiftRoutes);
-app.use('/api/sales', requireAuth, saleRoutes);
-app.use('/api/feed-purchases', requireAuth, feedPurchaseRoutes);
+app.use('/api/batches', requireAuth, staffOrReadOnly, batchRoutes);
+app.use('/api/options', requireAuth, staffOnly, optionRoutes);
+app.use('/api/vaccinations', requireAuth, staffOnly, vaccinationRouter);
+app.use('/api/feeds', requireAuth, staffOnly, feedRouter);
+app.use('/api/weights', requireAuth, staffOnly, weightRouter);
+app.use('/api/shifts', requireAuth, staffOnly, shiftRoutes);
+app.use('/api/sales', requireAuth, staffOnly, saleRoutes);
+app.use('/api/feed-purchases', requireAuth, staffOnly, feedPurchaseRoutes);
+// Admins only: the router itself turns everyone else away
+app.use('/api/users', requireAuth, userRoutes);
 
 app.use((err, req, res, next) => {
   if (err.status === 400) {

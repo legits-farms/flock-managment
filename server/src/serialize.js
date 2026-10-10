@@ -51,6 +51,18 @@ export const batchJson = (batch) => ({
   updatedAt: batch.updatedAt,
 });
 
+// A batch as the logged-in person may see it: a security guard needs its coops to
+// register mortality against, but not who the birds were bought from or entered by
+export const batchJsonFor = (user) => (batch) =>
+  user?.role === 'security'
+    ? {
+        ...batchJson(batch),
+        vendor: { name: '', phone: '', details: '' },
+        enteredBy: undefined,
+        createdBy: undefined,
+      }
+    : batchJson(batch);
+
 // The few details of a batch that a record or a set of a sale is listed with
 const batchRef = ({ id, ...details }) => ({ _id: id, ...details });
 
@@ -94,6 +106,10 @@ export const saleJson = (sale) => ({
     birds: sale.requiredBirds ?? undefined,
     breed: sale.requiredBreed,
     avgWeightKg: sale.requiredAvgKg ?? undefined,
+    eggs: sale.requiredEggs ?? undefined,
+    eggGrade: sale.requiredEggGrade ?? '',
+    eggWash: sale.requiredEggWash ?? '',
+    eggFertile: sale.requiredEggFertile ?? '',
   },
   sets: sale.sets.map((set) => ({
     batch: set.batch ? batchRef(set.batch) : set.batchId,

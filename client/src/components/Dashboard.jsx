@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   batchAge,
   broodingDue,
@@ -10,6 +11,7 @@ import {
 } from '../flock.js';
 import hen from '../assets/hen.png';
 import LoadStatus from './LoadStatus.jsx';
+import MortalityApprovals from './MortalityApprovals.jsx';
 import MortalityChart from './MortalityChart.jsx';
 import RecentRecords from './RecentRecords.jsx';
 import VaccinesDue from './VaccinesDue.jsx';
@@ -70,7 +72,10 @@ export default function Dashboard({
   onNavigate,
   onAction,
   onEnter,
+  onUpdated,
 }) {
+  // A mortality waiting for approval is open in full, in place of the dashboard
+  const [approving, setApproving] = useState(false);
   if (loading || error) return <LoadStatus loading={loading} error={error} onRetry={onRetry} />;
 
   // With no batches yet the dashboard still shows, every figure at zero
@@ -85,6 +90,8 @@ export default function Dashboard({
 
   return (
     <div className="dashboard">
+      {/* Everything but the approvals steps aside while one of them is open in full */}
+      <div className="dashboard-part" hidden={approving}>
       <section className="hero">
         <button type="button" className="hero-sale" onClick={() => onAction('sale')}>
           <img src={hen} alt="" />
@@ -116,7 +123,11 @@ export default function Dashboard({
           </div>
         </dl>
       </section>
+      </div>
 
+      <MortalityApprovals onUpdated={onUpdated} onViewing={setApproving} />
+
+      <div className="dashboard-part" hidden={approving}>
       <div className="quick-actions">
         <button type="button" className="quick" onClick={() => onAction('mortality')}>
           <span className="quick-icon">
@@ -255,6 +266,7 @@ export default function Dashboard({
       )}
 
       <RecentRecords />
+      </div>
     </div>
   );
 }

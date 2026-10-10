@@ -22,6 +22,9 @@ const PAYMENT_MODES = ['cash', 'upi', 'bank'];
 const MAX_SET_PHOTOS = 2;
 const MAX_SALE_PHOTOS = 8;
 const MAX_SALE_ITEMS = 20;
+// How the eggs a customer asks for can be
+const EGG_WASH = ['washed', 'unwashed'];
+const EGG_FERTILE = ['fertile', 'nonfertile'];
 
 const round = (value, places) => Number(value.toFixed(places));
 
@@ -111,7 +114,29 @@ function parseRequirement(raw = {}) {
   if (requiredAvgKg !== null && (!Number.isFinite(requiredAvgKg) || requiredAvgKg <= 0)) {
     throw badRequest('Average weight required must be more than 0');
   }
-  return { requiredBirds, requiredBreed, requiredAvgKg };
+  const requiredEggs = given(raw.eggs) ? Number(raw.eggs) : null;
+  if (requiredEggs !== null && (!Number.isInteger(requiredEggs) || requiredEggs < 1)) {
+    throw badRequest('Eggs required must be a whole number of at least 1');
+  }
+  const requiredEggGrade = text(raw.eggGrade);
+  if (requiredEggGrade.length > 20) throw badRequest('The egg grade is too long');
+  const requiredEggWash = text(raw.eggWash);
+  if (requiredEggWash && !EGG_WASH.includes(requiredEggWash)) {
+    throw badRequest('Choose washed or unwashed eggs');
+  }
+  const requiredEggFertile = text(raw.eggFertile);
+  if (requiredEggFertile && !EGG_FERTILE.includes(requiredEggFertile)) {
+    throw badRequest('Choose fertile or non-fertile eggs');
+  }
+  const wantsEggs = requiredEggs !== null || requiredEggGrade || requiredEggWash || requiredEggFertile;
+
+  return {
+    requiredBirds,
+    requiredBreed,
+    requiredAvgKg,
+    // Left out altogether when no eggs were asked for
+    ...(wantsEggs && { requiredEggs, requiredEggGrade, requiredEggWash, requiredEggFertile }),
+  };
 }
 
 // The n-th of something, from the address: a whole number from 0, or null
@@ -189,6 +214,7 @@ router.post('/', async (req, res, next) => {
     if (!name) throw badRequest('Customer name is required');
     const phone = parsePhone(customer?.phone);
     const business = text(customer?.business);
+    if (!business) throw badRequest('Business name is required');
     if (business.length > 80) throw badRequest('Business name is too long');
     const gstin = parseGstin(customer?.gstin);
     const requirement = parseRequirement(req.body.requirement);

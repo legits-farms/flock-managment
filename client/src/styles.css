@@ -218,6 +218,422 @@ textarea:focus {
   color: var(--orange);
 }
 
+/* Everyone with an account, each with their role to switch */
+.users ul {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.users li {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--cream);
+}
+
+.user-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.user-head > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.user-head strong {
+  color: var(--brown);
+}
+
+.user-head small {
+  font-size: 0.8rem;
+  color: var(--brown-soft);
+  overflow-wrap: anywhere;
+}
+
+.user-head .status-chip {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 30px;
+  background: var(--cream-2);
+  color: var(--brown-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.user-head .status-chip.done {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.user-head .status-chip.due {
+  background: #fdecea;
+  color: var(--red);
+}
+
+.users .choice button:disabled {
+  opacity: 0.6;
+}
+
+/* Mortality waiting for the admin: each entry with its own Approve and Reject */
+.approvals {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-color: var(--orange);
+}
+
+.approvals-count {
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 30px;
+  background: var(--orange);
+  color: #fff;
+  letter-spacing: 0;
+}
+
+.approvals ul {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.approvals li {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--cream);
+}
+
+.approval-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* A stretch of the dashboard that can be put away as one, without a box of its own */
+.dashboard-part {
+  display: contents;
+}
+
+.dashboard-part[hidden] {
+  display: none;
+}
+
+/* The entry itself is pressed to open everything saved with it */
+.approval-head > button {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: left;
+}
+
+.approval-head .link {
+  margin-top: 4px;
+  padding: 0;
+  font-size: 0.82rem;
+}
+
+.approval-detail .option-add-actions button {
+  min-height: 52px;
+}
+
+.approval-head strong {
+  color: var(--brown);
+}
+
+.approval-head small {
+  font-size: 0.8rem;
+  color: var(--brown-soft);
+  overflow-wrap: anywhere;
+}
+
+.approvals .secondary.reject,
+.approval-detail .secondary.reject {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.approvals button:disabled,
+.approval-detail button:disabled {
+  opacity: 0.6;
+}
+
+/* The security guard's screen. Its top is the dashboard's hero, with what to do
+   and one large button on it. */
+.security-hero h2 {
+  margin: 6px 0 4px;
+  color: #fff;
+  font-size: 1.6rem;
+}
+
+.security-hero p {
+  margin: 0;
+  font-size: 0.92rem;
+  opacity: 0.95;
+}
+
+.security-hero button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 58px;
+  margin-top: 16px;
+  border: none;
+  border-radius: 40px;
+  background: #fff;
+  color: var(--orange);
+  font-size: 1.08rem;
+  font-weight: 700;
+  box-shadow: 0 12px 22px -14px rgba(65, 64, 66, 0.7);
+  transition: transform 0.2s;
+}
+
+.security-hero button:active {
+  transform: scale(0.97);
+}
+
+.security-hero button span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--orange);
+  color: #fff;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.security-hero .security-none,
+.security-hero .security-sent {
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+/* Three figures side by side, each in the colour of what it counts */
+.security-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 0;
+}
+
+.security-stats > div {
+  padding: 12px 8px;
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--clay);
+  border-radius: 16px;
+  background: #fff;
+  text-align: center;
+}
+
+.security-stats .waiting {
+  border-top-color: #e0a100;
+}
+
+.security-stats .approved {
+  border-top-color: var(--green);
+}
+
+.security-stats .rejected {
+  border-top-color: var(--red);
+}
+
+.security-stats dt {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brown-soft);
+}
+
+.security-stats dd {
+  margin: 2px 0 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--brown);
+}
+
+.security-stats dd small {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--brown-soft);
+}
+
+.security-records {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Which entries are listed: pills, the chosen one filled in */
+.security-filter {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+}
+
+.security-filter button {
+  flex-shrink: 0;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 40px;
+  background: #fff;
+  color: var(--brown-soft);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.security-filter button.active {
+  border-color: var(--brown);
+  background: var(--brown);
+  color: #fff;
+}
+
+.security-records ul {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One entry: a card with an edge in the colour of what became of it */
+.security-records li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-left: 5px solid #e0a100;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 10px 22px -20px rgba(65, 64, 66, 0.5);
+}
+
+.security-records li.approved {
+  border-left-color: var(--green);
+}
+
+.security-records li.rejected {
+  border-left-color: var(--red);
+}
+
+.security-entry {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: left;
+}
+
+.security-birds {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  background: var(--orange-soft);
+  color: var(--orange);
+  font-size: 1.3rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.security-birds small {
+  margin-top: 3px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.security-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.security-text strong {
+  font-size: 1rem;
+  color: var(--brown);
+}
+
+.security-text small {
+  font-size: 0.78rem;
+  color: var(--brown-soft);
+  overflow-wrap: anywhere;
+}
+
+.security-side {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.security-side .status-chip {
+  padding: 4px 10px;
+  border-radius: 30px;
+  background: #fff3cf;
+  color: #8a6300;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.security-side .status-chip.done {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.security-side .status-chip.due {
+  background: #fdecea;
+  color: var(--red);
+}
+
 /* The pages of a form filled in over several: the one being filled in stands out,
    and the ones already done carry a tick and can be gone back to */
 .steps {

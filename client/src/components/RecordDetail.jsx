@@ -45,7 +45,10 @@ export default function RecordDetail({ kind, record, onBack, onOpenBatch }) {
           <div>
             <dt>Batch</dt>
             <dd>
-              {record.batch ? (
+              {/* Without somewhere to open the batch, its name is just shown */}
+              {record.batch && !onOpenBatch ? (
+                record.batch.batchName
+              ) : record.batch ? (
                 <button
                   type="button"
                   className="link inline"

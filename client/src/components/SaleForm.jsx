@@ -4,6 +4,8 @@ import { billPdf } from '../billPdf.js';
 import {
   BOX_MODE_LABELS,
   BREEDS,
+  EGG_FERTILE_LABELS,
+  EGG_WASH_LABELS,
   PAYMENT_MODE_LABELS,
   PAYMENT_STATUS_LABELS,
   coopGroups,
@@ -55,7 +57,7 @@ const STEPS = [
   {
     label: 'Customer',
     title: 'Who is buying?',
-    help: 'Write the name and phone number of the customer.',
+    help: 'Write the name, phone number and business name of the customer.',
   },
   {
     label: 'Birds',
@@ -104,7 +106,17 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
   const [business, setBusiness] = useState('');
   const [gstin, setGstin] = useState('');
   // What the customer asked for, noted before the birds are weighed
-  const [requirement, setRequirement] = useState({ birds: '', breed: '', avgWeightKg: '' });
+  const [requirement, setRequirement] = useState({
+    birds: '',
+    breed: '',
+    avgWeightKg: '',
+    eggs: '',
+    eggGrade: '',
+    eggWash: '',
+    eggFertile: '',
+  });
+  // Whether the eggs the customer wants as well are asked for
+  const [showEggs, setShowEggs] = useState(false);
   const [date, setDate] = useState(today);
   const [notes, setNotes] = useState('');
 
@@ -161,8 +173,8 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
   // Said under the share buttons once the bill is copied
   const [shareNote, setShareNote] = useState('');
   const [sharing, setSharing] = useState(false);
-  // Whether the business name and GST number are asked for
-  const [showBusiness, setShowBusiness] = useState(false);
+  // Whether the GST number is asked for
+  const [showGst, setShowGst] = useState(false);
   // The page of the form being filled in, from 1
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
@@ -470,6 +482,7 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
   function stepError(page) {
     if (page === 1) {
       if (!/^[6-9]\d{9}$/.test(mobileNumber(phone))) return 'Enter a valid 10-digit mobile number.';
+      if (!business.trim()) return 'Enter the business name.';
       if (gstin && !GSTIN.test(gstin)) return 'Enter a valid 15-character GST number.';
     }
     if (page === 2) {
@@ -632,6 +645,18 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
             </label>
 
             <label className="field">
+              <span>Business Name</span>
+              <input
+                type="text"
+                value={business}
+                onChange={(e) => setBusiness(e.target.value)}
+                placeholder="Shop or business name"
+                maxLength={80}
+                required
+              />
+            </label>
+
+            <label className="field">
               <span>
                 Village / Town <em>optional</em>
               </span>
@@ -648,40 +673,24 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
             </label>
 
-            {/* Only a few customers are a business, so these stay out of the way until asked for */}
-            {showBusiness ? (
-              <fieldset className="group">
-                <legend>Business</legend>
-
-                <label className="field">
-                  <span>
-                    Business Name <em>optional</em>
-                  </span>
-                  <input
-                    type="text"
-                    value={business}
-                    onChange={(e) => setBusiness(e.target.value)}
-                    maxLength={80}
-                  />
-                </label>
-
-                <label className="field">
-                  <span>
-                    GST Number <em>optional</em>
-                  </span>
-                  <input
-                    type="text"
-                    autoCapitalize="characters"
-                    maxLength={15}
-                    value={gstin}
-                    onChange={(e) => setGstin(e.target.value.replace(/\s/g, '').toUpperCase())}
-                    placeholder="15 characters"
-                  />
-                </label>
-              </fieldset>
+            {/* Only a few customers have a GST number, so it stays out of the way until asked for */}
+            {showGst ? (
+              <label className="field">
+                <span>
+                  GST Number <em>optional</em>
+                </span>
+                <input
+                  type="text"
+                  autoCapitalize="characters"
+                  maxLength={15}
+                  value={gstin}
+                  onChange={(e) => setGstin(e.target.value.replace(/\s/g, '').toUpperCase())}
+                  placeholder="15 characters"
+                />
+              </label>
             ) : (
-              <button type="button" className="secondary" onClick={() => setShowBusiness(true)}>
-                + Add Business / GST Details
+              <button type="button" className="secondary" onClick={() => setShowGst(true)}>
+                + Add GST Number
               </button>
             )}
 
@@ -720,6 +729,60 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
                   ))}
                 </datalist>
               </label>
+
+              {/* Most customers only want birds, so the eggs open when asked for */}
+              {showEggs ? (
+                <>
+                  <div className="field-row">
+                    <label className="field">
+                      <span>Eggs Required</span>
+                      <input {...whole} min="1" value={requirement.eggs} onChange={setRequired('eggs')} />
+                    </label>
+                    <label className="field">
+                      <span>Grade</span>
+                      <input
+                        type="text"
+                        maxLength={20}
+                        value={requirement.eggGrade}
+                        onChange={setRequired('eggGrade')}
+                        placeholder="e.g. A"
+                      />
+                    </label>
+                  </div>
+
+                  {[
+                    ['eggWash', 'Washed or unwashed?', EGG_WASH_LABELS],
+                    ['eggFertile', 'Fertile or non-fertile?', EGG_FERTILE_LABELS],
+                  ].map(([field, question, labels]) => (
+                    <div className="field" key={field}>
+                      <span>{question}</span>
+                      <div className="choice" role="group" aria-label={question}>
+                        {Object.entries(labels).map(([value, label]) => (
+                          <button
+                            key={value}
+                            type="button"
+                            aria-pressed={requirement[field] === value}
+                            className={requirement[field] === value ? 'active' : ''}
+                            // Pressing the chosen one again takes the choice back
+                            onClick={() =>
+                              setRequirement((prev) => ({
+                                ...prev,
+                                [field]: prev[field] === value ? '' : value,
+                              }))
+                            }
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <button type="button" className="secondary" onClick={() => setShowEggs(true)}>
+                  + Customer Also Wants Eggs
+                </button>
+              )}
             </fieldset>
           </>
         )}

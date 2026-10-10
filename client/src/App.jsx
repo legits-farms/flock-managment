@@ -14,8 +14,10 @@ import Feed from './components/Feed.jsx';
 import ManageFlock from './components/ManageFlock.jsx';
 import RecordForm from './components/RecordForm.jsx';
 import SaleForm from './components/SaleForm.jsx';
+import SecurityHome from './components/SecurityHome.jsx';
 import ShiftForm from './components/ShiftForm.jsx';
 import Records from './components/Records.jsx';
+import Users from './components/Users.jsx';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: '▦' },
@@ -44,9 +46,12 @@ export default function App() {
   if (user === undefined) return <p className="status">Loading…</p>;
   if (!user) return <AuthScreen onAuthenticated={setUser} />;
 
+  // A security guard gets the mortality screen alone; the server refuses them the rest too
+  const Screen = user.role === 'security' ? SecurityFlock : Flock;
+
   return (
     <AdminContext.Provider value={Boolean(user.isAdmin)}>
-      <Flock
+      <Screen
         key={user.id}
         user={user}
         onLogout={() => {
@@ -55,6 +60,72 @@ export default function App() {
         }}
       />
     </AdminContext.Provider>
+  );
+}
+
+// `onUsers` opens the list of users, and is only given for an admin
+function AppHeader({ user, onLogout, onUsers }) {
+  return (
+    <header className="app-header">
+      <img src={logo} alt="Energy Eggs" />
+      <div className="header-user">
+        <h1>Flock Management</h1>
+        <p>
+          {user.name} ·{' '}
+          {onUsers && (
+            <>
+              <button type="button" className="link inline" onClick={onUsers}>
+                Users
+              </button>{' '}
+              ·{' '}
+            </>
+          )}
+          <button type="button" className="link inline" onClick={onLogout}>
+            Log out
+          </button>
+        </p>
+      </div>
+    </header>
+  );
+}
+
+// The app of a security guard: mortality and nothing else, so no tabs either
+function SecurityFlock({ user, onLogout }) {
+  const [batches, setBatches] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const loadBatches = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      setBatches(await getBatches());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadBatches();
+  }, [loadBatches]);
+
+  return (
+    <div className="app">
+      <AppHeader user={user} onLogout={onLogout} />
+      <main className="app-main">
+        <SecurityHome
+          batches={batches}
+          loading={loading}
+          error={error}
+          onRetry={loadBatches}
+          onUpdated={(batch) =>
+            setBatches((prev) => prev.map((b) => (b._id === batch._id ? batch : b)))
+          }
+        />
+      </main>
+    </div>
   );
 }
 
@@ -145,20 +216,17 @@ function Flock({ user, onLogout }) {
 
   return (
     <div className="app">
-      <header className="app-header">
-        <img src={logo} alt="Energy Eggs" />
-        <div className="header-user">
-          <h1>Flock Management</h1>
-          <p>
-            {user.name} ·{' '}
-            <button type="button" className="link inline" onClick={onLogout}>
-              Log out
-            </button>
-          </p>
-        </div>
-      </header>
+      <AppHeader
+        user={user}
+        onLogout={onLogout}
+        onUsers={user.isAdmin ? () => goToTab('users') : undefined}
+      />
 
       <main className="app-main">
+        {/* Not one of the tabs: an admin reaches it from the header */}
+        {!entering && tab === 'users' && (
+          <Users me={user} onBack={() => goToTab('dashboard')} />
+        )}
         {entering && (
           <div className="manage">
             <button type="button" className="link back" onClick={() => setEntering(false)}>
@@ -221,6 +289,7 @@ function Flock({ user, onLogout }) {
               onNavigate={goToTab}
               onAction={setAction}
               onEnter={() => setEntering(true)}
+              onUpdated={handleUpdated}
             />
           ))}
         {!entering &&

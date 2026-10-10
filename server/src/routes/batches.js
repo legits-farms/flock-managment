@@ -6,7 +6,7 @@ import prisma from '../db.js';
 import { badRequest } from '../evidence.js';
 import { checkCoopFree } from '../occupancy.js';
 import { listedCoop, listedFarm } from '../options.js';
-import { addedBy, batchJson, createdBy } from '../serialize.js';
+import { addedBy, batchJson, batchJsonFor, createdBy } from '../serialize.js';
 import { parseDate, requiredText, text } from '../validate.js';
 
 const router = Router();
@@ -19,7 +19,7 @@ router.get('/', async (req, res, next) => {
       orderBy: { createdAt: 'desc' },
       include: withCoops,
     });
-    res.json(batches.map(batchJson));
+    res.json(batches.map(batchJsonFor(req.user)));
   } catch (err) {
     next(err);
   }

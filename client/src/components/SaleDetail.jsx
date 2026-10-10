@@ -1,5 +1,7 @@
 import {
   BOX_MODE_LABELS,
+  EGG_FERTILE_LABELS,
+  EGG_WASH_LABELS,
   PAYMENT_MODE_LABELS,
   PAYMENT_STATUS_LABELS,
   formatKg,
@@ -37,6 +39,15 @@ export default function SaleDetail({ sale, onBack, onOpenBatch }) {
     asked.birds && `${formatNumber(asked.birds)} birds`,
     asked.breed,
     asked.avgWeightKg && `avg ${formatKg(asked.avgWeightKg)} each`,
+    // Eggs asked for as well, said in one piece: "30 eggs, grade A, washed, fertile"
+    [
+      asked.eggs ? `${formatNumber(asked.eggs)} eggs` : (asked.eggGrade || asked.eggWash || asked.eggFertile) && 'Eggs',
+      asked.eggGrade && `grade ${asked.eggGrade}`,
+      EGG_WASH_LABELS[asked.eggWash]?.toLowerCase(),
+      EGG_FERTILE_LABELS[asked.eggFertile]?.toLowerCase(),
+    ]
+      .filter(Boolean)
+      .join(', '),
   ].filter(Boolean);
 
   // Each line of the bill: [label, how it was worked out, rupees, whether it is on the bill]

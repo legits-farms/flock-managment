@@ -151,6 +151,13 @@ model Mortality {
   reason        String
   // When the birds were lost: when it was entered, unless an admin dated it
   date          DateTime @default(now())
+  // pending | approved | rejected. What a security guard registers waits for an
+  // admin: only approved mortality is taken off the coop's birds.
+  status        String   @default("approved")
+  // The admin who approved or rejected it, and when
+  decidedById   String?
+  decidedByName String?
+  decidedAt     DateTime?
   photos        Photo[]
   createdById   String?
   createdByName String?
@@ -271,6 +278,12 @@ model Sale {
   requiredBirds    Int?
   requiredBreed    String    @default("")
   requiredAvgKg    Float?
+  // Eggs the customer asked for as well: how many, of which grade, washed or
+  // unwashed, and fertile or nonfertile. Any may be left out.
+  requiredEggs       Int?
+  requiredEggGrade   String  @default("")
+  requiredEggWash    String  @default("")
+  requiredEggFertile String  @default("")
   sets             SaleSet[]
   // kg | piece. Per kg the birds are billed on their weight at ratePerKg; per
   // piece every male at maleRate and every female at femaleRate

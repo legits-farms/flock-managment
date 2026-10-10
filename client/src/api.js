@@ -96,6 +96,13 @@ export const getAllShifts = () => request('/shifts?all=true');
 
 export const getAllMortalities = () => request('/mortalities?all=true');
 
+// Mortality a security guard registered that an admin has not decided on yet
+export const getPendingMortalities = () => request('/mortalities?status=pending&all=true');
+
+// `decision` is 'approve' or 'reject'. Resolves to { id, status, batch } with the updated batch.
+export const decideMortality = (id, decision) =>
+  request(`/mortalities/${id}/decision`, { method: 'POST', body: JSON.stringify({ decision }) });
+
 export const getAllVaccinations = () => request('/vaccinations?all=true');
 
 export const getAllFeeds = () => request('/feeds?all=true');
@@ -139,6 +146,13 @@ export const signup = (credentials) =>
   request('/auth/signup', { method: 'POST', body: JSON.stringify(credentials) });
 
 export const getMe = () => request('/auth/me');
+
+// Everyone with an account, for an admin: [{ _id, name, phone, role, status, createdAt }]
+export const getUsers = () => request('/users');
+
+// `role` is 'user' or 'security'. Resolves to the updated user.
+export const setUserRole = (id, role) =>
+  request(`/users/${id}/role`, { method: 'POST', body: JSON.stringify({ role }) });
 
 export const getShifts = (batchId) => request(`/shifts${forBatch(batchId)}`);
 

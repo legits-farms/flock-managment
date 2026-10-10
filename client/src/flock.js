@@ -194,6 +194,10 @@ export const RECORD_MORTALITY_TYPES = ['shift', 'brooding', 'coop'];
 export const PAYMENT_STATUS_LABELS = { unpaid: 'Unpaid', partial: 'Partly Paid', paid: 'Paid' };
 export const PAYMENT_MODE_LABELS = { cash: 'Cash', upi: 'UPI', bank: 'Bank Transfer' };
 
+// How the eggs a customer asks for can be
+export const EGG_WASH_LABELS = { washed: 'Washed', unwashed: 'Unwashed' };
+export const EGG_FERTILE_LABELS = { fertile: 'Fertile', nonfertile: 'Non-fertile' };
+
 // Whose boxes sold birds leave in
 export const BOX_MODE_LABELS = {
   own: 'Brought their own',
