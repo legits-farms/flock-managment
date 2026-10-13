@@ -151,6 +151,13 @@ model Mortality {
   reason        String
   // When the birds were lost: when it was entered, unless an admin dated it
   date          DateTime @default(now())
+  // pending | approved | rejected. What a security guard registers waits for an
+  // admin: only approved mortality is taken off the coop's birds.
+  status        String   @default("approved")
+  // The admin who approved or rejected it, and when
+  decidedById   String?
+  decidedByName String?
+  decidedAt     DateTime?
   photos        Photo[]
   createdById   String?
   createdByName String?
@@ -271,6 +278,12 @@ model Sale {
   requiredBirds    Int?
   requiredBreed    String    @default("")
   requiredAvgKg    Float?
+  // Eggs the customer asked for as well: how many, of which grade, washed or
+  // unwashed, and fertile or nonfertile. Any may be left out.
+  requiredEggs       Int?
+  requiredEggGrade   String  @default("")
+  requiredEggWash    String  @default("")
+  requiredEggFertile String  @default("")
   sets             SaleSet[]
   // kg | piece. Per kg the birds are billed on their weight at ratePerKg; per
   // piece every male at maleRate and every female at femaleRate
@@ -288,6 +301,8 @@ model Sale {
   boxReturned      Int       @default(0)
   // Who was there when the birds were weighed: [{ name, phone }]
   present          Json      @default("[]")
+  // Other things sold on the same bill, e.g. eggs: [{ name, qty, rate, amount }]
+  items            Json      @default("[]")
   notes            String    @default("")
   // unpaid | partial | paid
   paymentStatus    String    @default("unpaid")
@@ -315,6 +330,13 @@ model Sale {
   maleBill         Float     @default(0)
   femaleBill       Float     @default(0)
   boxBill          Float     @default(0)
+  itemBill         Float     @default(0)
+  // Taken off the bill: amount | percent, the rupees or percentage entered, and
+  // what that came to in rupees
+  discountType     String    @default("amount")
+  discountValue    Float     @default(0)
+  discount         Float     @default(0)
+  // The bills above less the discount
   amount           Float     @default(0)
   createdById      String?
   createdByName    String?
@@ -338,6 +360,8 @@ model SaleSet {
   // male | female. Only on sets of sales made while each set was all male or all
   // female and billed at its own rate
   gender         String?
+  // The number on the box the birds were weighed in, when one was noted
+  boxNo          String  @default("")
   birds          Int
   boxes          Int     @default(0)
   boxWeightEmpty Float   @default(0)

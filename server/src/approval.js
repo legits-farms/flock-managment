@@ -59,7 +59,11 @@ export const page = (title, body) => `<!doctype html>
   dt { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #5f5c5e; }
   dd { margin: 0 0 8px; font-weight: 700; }
   dd:last-child { margin-bottom: 0; }
-  form { display: flex; gap: 10px; }
+  form { display: flex; flex-wrap: wrap; gap: 10px; }
+  .roles { flex-basis: 100%; margin: 0 0 10px; padding: 10px 14px; border: 1px solid #ecdcca; border-radius: 14px; }
+  .roles legend { padding: 0 6px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #5f5c5e; }
+  .roles label { display: flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 600; cursor: pointer; }
+  .roles input { width: 20px; height: 20px; accent-color: #ee6620; }
   button { flex: 1; min-height: 48px; border-radius: 30px; font: inherit; font-weight: 700; cursor: pointer; }
   .approve { border: none; background: #ee6620; color: #fff; }
   .reject { border: 1px solid #b3261e; background: #fff; color: #b3261e; }

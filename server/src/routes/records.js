@@ -3,7 +3,7 @@ import { actor } from '../auth.js';
 import { MORTALITY_TYPES, coopLive, findBatch, placeType } from '../batches.js';
 import prisma from '../db.js';
 import { badRequest, parseEvidence } from '../evidence.js';
-import { batchJson, createdBy, recordJson } from '../serialize.js';
+import { batchJsonFor, createdBy, recordJson } from '../serialize.js';
 import { parseDate, parseId, requiredText, text } from '../validate.js';
 
 async function findBatchAndCoop({ batchId, coopId }) {
@@ -36,15 +36,16 @@ function parseKg(value, label) {
 }
 
 // What a new record answers with: its id and the batch as it is now
-const created = async (record, batch) => ({
+const created = async (record, batch, user) => ({
   id: record.id,
-  batch: batchJson(await findBatch(batch.id)),
+  batch: batchJsonFor(user)(await findBatch(batch.id)),
 });
 
 // Every kind of record shares the same list / create endpoints, and those with
 // photo evidence (mortality, vaccination) a photo endpoint. `model` is the name
-// of the record's table in Prisma.
-function recordRouter(model, create, { photos = true } = {}) {
+// of the record's table in Prisma. `only` narrows what a request lists, and
+// `extend` adds endpoints of the record's own.
+function recordRouter(model, create, { photos = true, only = () => ({}), extend } = {}) {
   const router = Router();
 
   router.get('/', async (req, res, next) => {
@@ -54,7 +55,7 @@ function recordRouter(model, create, { photos = true } = {}) {
       const { batch, all } = req.query;
       if (batch !== undefined && !parseId(batch)) return res.json([]);
       const records = await prisma[model].findMany({
-        where: batch ? { batchId: batch } : {},
+        where: { ...(batch && { batchId: batch }), ...only(req) },
         orderBy: { createdAt: 'desc' },
         take: batch || all === 'true' ? 1000 : 20,
         include: {
@@ -96,6 +97,7 @@ function recordRouter(model, create, { photos = true } = {}) {
     }
   });
 
+  extend?.(router);
   return router;
 }
 
@@ -108,19 +110,86 @@ function parseMortalityDate(value, user) {
   return date;
 }
 
-export const mortalityRouter = recordRouter('mortality', async (body, by, user) => {
-  const { batch, coop } = await findBatchAndCoop(body);
-  const birds = parseBirds(body.birds, coop);
-  if (body.type && !MORTALITY_TYPES.includes(body.type)) {
-    throw badRequest('Select the mortality type');
-  }
-  const reason = requiredText(body.reason, 'Reason is required');
-  const date = parseMortalityDate(body.date, user);
-  const photos = parseEvidence(body, user);
+// Which mortality a request lists. Everything counted elsewhere is approved, so
+// that is all the app is given, apart from the admin's list of what is waiting
+// (?status=pending) and a security guard, who sees what became of their entries.
+function mortalityListed(req) {
+  if (req.query.status === 'pending') return { status: 'pending' };
+  if (req.user.role === 'security') return {};
+  return { status: 'approved' };
+}
 
-  // The record and the coop's count are saved together or not at all
-  const [record] = await prisma.$transaction([
-    prisma.mortality.create({
+// An admin approving or rejecting mortality a security guard registered. Only on
+// approval are the birds taken off the coop.
+function mortalityDecisions(router) {
+  router.post('/:id/decision', async (req, res, next) => {
+    try {
+      if (!req.user.isAdmin) {
+        return res.status(403).json({ message: 'Only an admin can approve mortality' });
+      }
+      const { decision } = req.body;
+      if (decision !== 'approve' && decision !== 'reject') {
+        throw badRequest('Choose Approve or Reject');
+      }
+      const record = await prisma.mortality.findUnique({ where: { id: req.params.id } });
+      if (!record) return res.status(404).json({ message: 'Not found' });
+
+      const approved = decision === 'approve';
+      if (approved) {
+        // Birds may have been sold or shifted since it was registered
+        const batch = await findBatch(record.batchId);
+        const coop = batch?.coops.find((other) => other.id === record.coopId);
+        if (!coop) throw badRequest(`${record.coopName} no longer holds this batch`);
+        parseBirds(record.birds, coop);
+      }
+
+      // Decided and taken off the coop together or not at all, and only while it
+      // is still waiting, so two admins cannot count the same birds twice
+      await prisma.$transaction(async (tx) => {
+        const { count } = await tx.mortality.updateMany({
+          where: { id: record.id, status: 'pending' },
+          data: {
+            status: approved ? 'approved' : 'rejected',
+            decidedById: req.user.id,
+            decidedByName: req.user.name,
+            decidedAt: new Date(),
+          },
+        });
+        if (count === 0) throw badRequest('This mortality was already approved or rejected');
+        if (approved) {
+          await tx.coop.update({
+            where: { id: record.coopId },
+            data: { mortality: { increment: record.birds } },
+          });
+        }
+      });
+
+      res.json({
+        id: record.id,
+        status: approved ? 'approved' : 'rejected',
+        batch: batchJsonFor(req.user)(await findBatch(record.batchId)),
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+}
+
+export const mortalityRouter = recordRouter(
+  'mortality',
+  async (body, by, user) => {
+    const { batch, coop } = await findBatchAndCoop(body);
+    const birds = parseBirds(body.birds, coop);
+    if (body.type && !MORTALITY_TYPES.includes(body.type)) {
+      throw badRequest('Select the mortality type');
+    }
+    const reason = requiredText(body.reason, 'Reason is required');
+    const date = parseMortalityDate(body.date, user);
+    const photos = parseEvidence(body, user);
+
+    // What a security guard registers waits for an admin, and takes no birds off the coop yet
+    const pending = user.role === 'security';
+    const save = prisma.mortality.create({
       data: {
         batchId: batch.id,
         type: body.type || placeType(coop.name),
@@ -129,14 +198,24 @@ export const mortalityRouter = recordRouter('mortality', async (body, by, user) 
         birds,
         reason,
         date,
+        status: pending ? 'pending' : 'approved',
         photos: { create: photos },
         ...by,
       },
-    }),
-    prisma.coop.update({ where: { id: coop.id }, data: { mortality: { increment: birds } } }),
-  ]);
-  return created(record, batch);
-});
+    });
+    // Otherwise the record and the coop's count are saved together or not at all
+    const [record] = await prisma.$transaction(
+      pending
+        ? [save]
+        : [
+            save,
+            prisma.coop.update({ where: { id: coop.id }, data: { mortality: { increment: birds } } }),
+          ]
+    );
+    return created(record, batch, user);
+  },
+  { only: mortalityListed, extend: mortalityDecisions }
+);
 
 export const vaccinationRouter = recordRouter('vaccination', async (body, by, user) => {
   const { batch, coop } = await findBatchAndCoop(body);

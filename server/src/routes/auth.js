@@ -1,7 +1,7 @@
 import { Router, urlencoded } from 'express';
 import bcrypt from 'bcryptjs';
 import prisma from '../db.js';
-import { requireAuth, signToken } from '../auth.js';
+import { ROLES, requireAuth, signToken } from '../auth.js';
 import {
   approvalConfigured,
   approvalToken,
@@ -14,11 +14,13 @@ import { badRequest } from '../evidence.js';
 
 const router = Router();
 
-// What the app knows about the logged-in person. An admin gets the admin-only parts of the forms.
+// What the app knows about the logged-in person. An admin gets the admin-only parts
+// of the forms, and a security guard only the mortality ones.
 const profile = (user) => ({
   id: user.id,
   name: user.name,
   phone: user.phone,
+  role: user.role,
   isAdmin: user.role === 'admin',
 });
 
@@ -118,6 +120,15 @@ router.get('/approval', async (req, res, next) => {
 <dl><dt>Name</dt><dd>${escapeHtml(user.name)}</dd><dt>Phone</dt><dd>${escapeHtml(user.phone)}</dd></dl>
 <form method="post" action="/api/auth/approval">
   <input type="hidden" name="token" value="${escapeHtml(approvalToken(user))}">
+  <fieldset class="roles">
+    <legend>What can they do?</legend>
+    ${Object.entries(ROLES)
+      .map(
+        ([role, label], i) =>
+          `<label><input type="radio" name="role" value="${role}"${i === 0 ? ' checked' : ''}> ${escapeHtml(label)}</label>`
+      )
+      .join('')}
+  </fieldset>
   <button class="reject" name="decision" value="reject">Reject</button>
   <button class="approve" name="decision" value="approve">Approve</button>
 </form>`
@@ -136,12 +147,15 @@ router.post('/approval', urlencoded({ extended: false }), async (req, res, next)
     const { decision } = req.body;
     if (decision !== 'approve' && decision !== 'reject') throw badRequest('Choose Approve or Reject.');
     const status = decision === 'approve' ? 'approved' : 'rejected';
+    // What the person may do, chosen as they are approved
+    const role = req.body.role ?? 'user';
+    if (status === 'approved' && !Object.hasOwn(ROLES, role)) throw badRequest('Choose what they can do.');
 
     // Only a pending account can be decided, so an old link cannot undo a decision
     const id = readApprovalToken(req.body.token);
     const { count } = await prisma.user.updateMany({
       where: { id, status: 'pending' },
-      data: { status },
+      data: status === 'approved' ? { status, role } : { status },
     });
     if (count === 0) throw badRequest('This request was already decided or no longer exists.');
     const user = await prisma.user.findUnique({ where: { id } });
@@ -150,7 +164,9 @@ router.post('/approval', urlencoded({ extended: false }), async (req, res, next)
       page(
         `Access ${status}`,
         `<h1>Access ${status}</h1><p><strong>${escapeHtml(user.name)}</strong> ${
-          status === 'approved' ? 'can now log in to the app.' : 'cannot log in to the app.'
+          status === 'approved'
+            ? `can now log in to the app as <strong>${escapeHtml(ROLES[role])}</strong>.`
+            : 'cannot log in to the app.'
         }</p>`
       )
     );
