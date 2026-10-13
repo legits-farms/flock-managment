@@ -29,7 +29,8 @@ const emptyForm = () => ({
   enteredBy: '',
 });
 
-export default function BatchForm({ farms, onOptions, onRegistered }) {
+// `canAddFarm` is off for a farm manager, who has their own farm alone
+export default function BatchForm({ farms, canAddFarm = true, onOptions, onRegistered }) {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -209,7 +210,7 @@ export default function BatchForm({ farms, onOptions, onRegistered }) {
           onChange={setValue('shiftToFarm')}
           placeholder="Select farm"
           addLabel="Add a farm"
-          onAdd={async (name) => onOptions(await addFarm(name))}
+          onAdd={canAddFarm ? async (name) => onOptions(await addFarm(name)) : undefined}
         />
       </div>
 

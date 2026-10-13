@@ -2021,6 +2021,16 @@ dt {
   flex: none;
 }
 
+/* More answers than fit side by side: two to a row */
+.choice.wrap {
+  flex-wrap: wrap;
+}
+
+.choice.wrap button {
+  flex: 1 1 40%;
+  padding: 0 10px;
+}
+
 /* A button that opens a file or camera picker: the real input is kept out of sight */
 .file-pick {
   display: flex;

@@ -21,11 +21,13 @@ const houseOf = (name) => name.trim().replace(/(\s+|(?<=\d))[a-z]$/i, '');
 // The farms and their coops on one screen: pick a farm, see what it holds, then
 // its coops, one card each: those holding birds first, then the empty ones with
 // every figure at zero. A coop that has held birds opens its page. `onOpenFarm`
-// opens the farm's page.
+// opens the farm's page. `canAddFarm` is off for a farm manager, who has their
+// own farm alone.
 export default function CoopList({
   batches,
   farms,
   coopsByFarm,
+  canAddFarm = true,
   onOptions,
   loading,
   error,
@@ -57,10 +59,16 @@ export default function CoopList({
   if (farms.length === 0) {
     return (
       <div className="status">
-        <p>No farms yet. Add your first farm.</p>
-        <button type="button" className="primary" onClick={() => setAdding('farm')}>
-          ＋ Add Farm
-        </button>
+        <p>
+          {canAddFarm
+            ? 'No farms yet. Add your first farm.'
+            : 'Your farm is not on the list any more. Ask the admin.'}
+        </p>
+        {canAddFarm && (
+          <button type="button" className="primary" onClick={() => setAdding('farm')}>
+            ＋ Add Farm
+          </button>
+        )}
         {farmSheet}
       </div>
     );
@@ -123,9 +131,11 @@ export default function CoopList({
             {name}
           </button>
         ))}
-        <button type="button" className="add" onClick={() => setAdding('farm')}>
-          ＋ Farm
-        </button>
+        {canAddFarm && (
+          <button type="button" className="add" onClick={() => setAdding('farm')}>
+            ＋ Farm
+          </button>
+        )}
       </div>
 
       <section className="hero">

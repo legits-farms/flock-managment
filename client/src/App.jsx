@@ -46,7 +46,8 @@ export default function App() {
   if (user === undefined) return <p className="status">Loading…</p>;
   if (!user) return <AuthScreen onAuthenticated={setUser} />;
 
-  // A security guard gets the mortality screen alone; the server refuses them the rest too
+  // A security guard gets the mortality screen alone; the server refuses them the rest too.
+  // A farm manager gets the whole app, with only their farm in it: the server sends no more.
   const Screen = user.role === 'security' ? SecurityFlock : Flock;
 
   return (
@@ -72,6 +73,7 @@ function AppHeader({ user, onLogout, onUsers }) {
         <h1>Flock Management</h1>
         <p>
           {user.name} ·{' '}
+          {user.farm && <>{user.farm} · </>}
           {onUsers && (
             <>
               <button type="button" className="link inline" onClick={onUsers}>
@@ -211,6 +213,8 @@ function Flock({ user, onLogout }) {
     setManagingId(id);
   }
 
+  // A farm manager has their own farm alone
+  const canAddFarm = user.role !== 'manager';
   const managing = batches.find((b) => b._id === managingId);
   const viewingCoop = coopKey && coopGroups(batches).find((group) => group.key === coopKey);
 
@@ -234,6 +238,7 @@ function Flock({ user, onLogout }) {
             </button>
             <BatchForm
               farms={options.farms}
+              canAddFarm={canAddFarm}
               onOptions={setOptions}
               onRegistered={handleRegistered}
             />
@@ -343,6 +348,7 @@ function Flock({ user, onLogout }) {
               batches={batches}
               farms={options.farms}
               coopsByFarm={options.coops}
+              canAddFarm={canAddFarm}
               onOptions={setOptions}
               loading={loading}
               error={error}

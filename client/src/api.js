@@ -147,12 +147,13 @@ export const signup = (credentials) =>
 
 export const getMe = () => request('/auth/me');
 
-// Everyone with an account, for an admin: [{ _id, name, phone, role, status, createdAt }]
+// Everyone with an account, for an admin: [{ _id, name, phone, role, farm, status, createdAt }]
 export const getUsers = () => request('/users');
 
-// `role` is 'user' or 'security'. Resolves to the updated user.
-export const setUserRole = (id, role) =>
-  request(`/users/${id}/role`, { method: 'POST', body: JSON.stringify({ role }) });
+// `role` is 'user', 'security' or 'manager', a manager with the `farm` they are
+// kept to. Resolves to the updated user.
+export const setUserRole = (id, role, farm) =>
+  request(`/users/${id}/role`, { method: 'POST', body: JSON.stringify({ role, farm }) });
 
 export const getShifts = (batchId) => request(`/shifts${forBatch(batchId)}`);
 

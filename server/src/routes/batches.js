@@ -6,7 +6,8 @@ import prisma from '../db.js';
 import { badRequest } from '../evidence.js';
 import { checkCoopFree } from '../occupancy.js';
 import { listedCoop, listedFarm } from '../options.js';
-import { addedBy, batchJson, batchJsonFor, createdBy } from '../serialize.js';
+import { batchScope, checkCoopOnFarm, checkFarm } from '../scope.js';
+import { addedBy, batchJsonFor, createdBy } from '../serialize.js';
 import { parseDate, requiredText, text } from '../validate.js';
 
 const router = Router();
@@ -16,6 +17,7 @@ const AGE_UNITS = ['days', 'weeks'];
 router.get('/', async (req, res, next) => {
   try {
     const batches = await prisma.batch.findMany({
+      where: batchScope(req.user),
       orderBy: { createdAt: 'desc' },
       include: withCoops,
     });
@@ -78,12 +80,13 @@ router.post('/', async (req, res, next) => {
     // Coops belong to a farm, so every batch needs one from the list
     const farm = await listedFarm(req.body.shiftToFarm);
     if (!farm) return res.status(400).json({ message: 'Select a farm' });
+    checkFarm(req.user, farm);
 
     const batch = await prisma.batch.create({
       data: { ...parseBatch(req.body), shiftToFarm: farm, ...createdBy(actor(req)) },
       include: withCoops,
     });
-    res.status(201).json(batchJson(batch));
+    res.status(201).json(batchJsonFor(req.user)(batch));
   } catch (err) {
     next(err);
   }
@@ -101,6 +104,10 @@ router.post('/:id/coops', async (req, res, next) => {
     // A batch can be spread over several farms; without one the coop is on the batch's own
     const farm = await listedFarm(req.body.farm || batch.shiftToFarm);
     if (!farm) return res.status(400).json({ message: 'Select a farm' });
+    // Birds not yet in a coop are on the batch's own farm, so a manager allocates
+    // only the batches of their farm, and only to its coops
+    checkFarm(req.user, batch.shiftToFarm);
+    checkFarm(req.user, farm);
     // Each farm has a fixed list of coops; new ones are added through /api/options/coops
     const name = await listedCoop(req.body.name, farm);
     if (!name) return res.status(400).json({ message: 'Select a coop from the list' });
@@ -138,7 +145,7 @@ router.post('/:id/coops', async (req, res, next) => {
         ...addedBy(actor(req)),
       },
     });
-    res.status(201).json(batchJson(await findBatch(batch.id)));
+    res.status(201).json(batchJsonFor(req.user)(await findBatch(batch.id)));
   } catch (err) {
     next(err);
   }
@@ -151,6 +158,7 @@ router.delete('/:id/coops/:coopId', async (req, res, next) => {
 
     const coop = batch.coops.find((other) => other.id === req.params.coopId);
     if (!coop) return res.status(404).json({ message: 'Coop not found' });
+    checkCoopOnFarm(req.user, batch, coop);
 
     if (coop.mortality > 0) {
       return res
@@ -165,7 +173,7 @@ router.delete('/:id/coops/:coopId', async (req, res, next) => {
     }
 
     await prisma.coop.delete({ where: { id: coop.id } });
-    res.json(batchJson(await findBatch(batch.id)));
+    res.json(batchJsonFor(req.user)(await findBatch(batch.id)));
   } catch (err) {
     next(err);
   }

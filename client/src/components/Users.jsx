@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getUsers, setUserRole } from '../api.js';
+import { getOptions, getUsers, setUserRole } from '../api.js';
 
-const ROLE_LABELS = { admin: 'Admin', user: 'Staff', security: 'Security' };
+const ROLE_LABELS = { admin: 'Admin', user: 'Staff', security: 'Security', manager: 'Manager' };
 
 // What each role may do, said under the name
 const ROLE_NOTES = {
@@ -10,8 +10,15 @@ const ROLE_NOTES = {
   security: 'Mortality only',
 };
 
-// The roles an account can be switched between
-const SWITCHABLE = ['user', 'security'];
+// A manager is said with their farm, which is all they see
+const roleLabel = (user) =>
+  user.role === 'manager' && user.farm
+    ? `${user.farm} Manager`
+    : (ROLE_LABELS[user.role] ?? user.role);
+const roleNote = (user) =>
+  user.role === 'manager' ? `${user.farm ?? 'No farm'} only` : (ROLE_NOTES[user.role] ?? '');
+
+const sameFarm = (a, b) => (a ?? '').trim().toLowerCase() === (b ?? '').trim().toLowerCase();
 
 // [label, extra class of the chip] by account status
 const STATUS = {
@@ -26,6 +33,8 @@ const formatDate = (value) =>
 // Everyone with an account and what they may do. Only an admin gets here.
 export default function Users({ me, onBack }) {
   const [users, setUsers] = useState([]);
+  // A manager is of one farm, so there is that role to give for each farm
+  const [farms, setFarms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   // Id of the user whose role is being saved
@@ -35,7 +44,9 @@ export default function Users({ me, onBack }) {
     setLoading(true);
     setError('');
     try {
-      setUsers(await getUsers());
+      const [list, options] = await Promise.all([getUsers(), getOptions()]);
+      setUsers(list);
+      setFarms(options.farms);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -47,12 +58,21 @@ export default function Users({ me, onBack }) {
     load();
   }, [load]);
 
-  async function changeRole(user, role) {
-    if (user.role === role) return;
+  // The roles an account can be switched between: [role, farm of a manager, label]
+  const choices = [
+    ['user', undefined, ROLE_LABELS.user],
+    ['security', undefined, ROLE_LABELS.security],
+    ...farms.map((farm) => ['manager', farm, `${farm} Manager`]),
+  ];
+  const has = (user, role, farm) =>
+    user.role === role && (role !== 'manager' || sameFarm(user.farm, farm));
+
+  async function changeRole(user, role, farm) {
+    if (has(user, role, farm)) return;
     setSaving(user._id);
     setError('');
     try {
-      const updated = await setUserRole(user._id, role);
+      const updated = await setUserRole(user._id, role, farm);
       setUsers((prev) => prev.map((other) => (other._id === updated._id ? updated : other)));
     } catch (err) {
       setError(err.message);
@@ -100,7 +120,7 @@ export default function Users({ me, onBack }) {
                     {user.phone} · Joined {formatDate(user.createdAt)}
                   </small>
                   <small>
-                    {ROLE_LABELS[user.role] ?? user.role} · {ROLE_NOTES[user.role] ?? ''}
+                    {roleLabel(user)} · {roleNote(user)}
                   </small>
                 </div>
                 <span className={`status-chip ${STATUS[user.status]?.[1] ?? ''}`}>
@@ -108,19 +128,19 @@ export default function Users({ me, onBack }) {
                 </span>
               </div>
 
-              {/* An admin is made by hand, so only the other two can be switched */}
+              {/* An admin is made by hand, so only the others can be switched */}
               {user.role !== 'admin' && (
-                <div className="choice" role="group" aria-label={`Role of ${user.name}`}>
-                  {SWITCHABLE.map((role) => (
+                <div className="choice wrap" role="group" aria-label={`Role of ${user.name}`}>
+                  {choices.map(([role, farm, label]) => (
                     <button
-                      key={role}
+                      key={label}
                       type="button"
-                      aria-pressed={user.role === role}
-                      className={user.role === role ? 'active' : ''}
+                      aria-pressed={has(user, role, farm)}
+                      className={has(user, role, farm) ? 'active' : ''}
                       disabled={saving === user._id}
-                      onClick={() => changeRole(user, role)}
+                      onClick={() => changeRole(user, role, farm)}
                     >
-                      {ROLE_LABELS[role]}
+                      {label}
                     </button>
                   ))}
                 </div>

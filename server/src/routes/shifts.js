@@ -6,7 +6,8 @@ import prisma from '../db.js';
 import { badRequest, parseEvidence } from '../evidence.js';
 import { checkCoopFree } from '../occupancy.js';
 import { listedCoop, listedFarm } from '../options.js';
-import { addedBy, batchJson, createdBy, recordJson } from '../serialize.js';
+import { checkCoopOnFarm, checkFarm, shiftScope } from '../scope.js';
+import { addedBy, batchJsonFor, createdBy, recordJson } from '../serialize.js';
 import { parseDate, parseId, requiredText } from '../validate.js';
 
 const router = Router();
@@ -19,7 +20,7 @@ router.get('/', async (req, res, next) => {
     const { batch, all } = req.query;
     if (batch !== undefined && !parseId(batch)) return res.json([]);
     const shifts = await prisma.shift.findMany({
-      where: batch ? { batchId: batch } : {},
+      where: { ...(batch && { batchId: batch }), ...shiftScope(req.user) },
       orderBy: { createdAt: 'desc' },
       take: batch || all === 'true' ? 1000 : 20,
       include: { batch: { select: { id: true, batchName: true } } },
@@ -41,9 +42,12 @@ router.post('/', async (req, res, next) => {
     if (!batch) throw badRequest('Select the batch to shift');
     const from = batch.coops.find((coop) => coop.id === fromCoopId);
     if (!from) throw badRequest('Select the coop to shift from');
+    checkCoopOnFarm(req.user, batch, from);
 
     const farm = await listedFarm(toFarm);
     if (!farm) throw badRequest('Select the farm to shift to');
+    // A manager moves birds about their own farm; sending them to another is for staff
+    checkFarm(req.user, farm);
     const coopName = await listedCoop(toCoop, farm);
     if (!coopName) throw badRequest('Select the coop to shift to');
     checkBroodingAge(batch, coopName);
@@ -140,7 +144,9 @@ router.post('/', async (req, res, next) => {
       return made;
     });
 
-    res.status(201).json({ id: shift.id, batch: batchJson(await findBatch(batch.id)) });
+    res
+      .status(201)
+      .json({ id: shift.id, batch: batchJsonFor(req.user)(await findBatch(batch.id)) });
   } catch (err) {
     next(err);
   }
