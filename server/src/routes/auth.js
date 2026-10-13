@@ -1,7 +1,7 @@
 import { Router, urlencoded } from 'express';
 import bcrypt from 'bcryptjs';
 import prisma from '../db.js';
-import { ROLES, requireAuth, signToken } from '../auth.js';
+import { ROLES, parseRole, requireAuth, roleLabel, signToken } from '../auth.js';
 import {
   approvalConfigured,
   approvalToken,
@@ -11,16 +11,18 @@ import {
   requestApproval,
 } from '../approval.js';
 import { badRequest } from '../evidence.js';
+import { listOptions } from '../options.js';
 
 const router = Router();
 
 // What the app knows about the logged-in person. An admin gets the admin-only parts
-// of the forms, and a security guard only the mortality ones.
+// of the forms, a security guard only the mortality ones, and a manager their farm.
 const profile = (user) => ({
   id: user.id,
   name: user.name,
   phone: user.phone,
   role: user.role,
+  farm: user.role === 'manager' ? (user.farm ?? undefined) : undefined,
   isAdmin: user.role === 'admin',
 });
 
@@ -112,6 +114,15 @@ router.get('/approval', async (req, res, next) => {
       );
     }
 
+    // A manager is of one farm, so that role is offered once for each farm
+    const { farms } = await listOptions();
+    const choices = [
+      ...Object.keys(ROLES)
+        .filter((role) => role !== 'manager')
+        .map((role) => [role, roleLabel({ role })]),
+      ...farms.map((farm) => [`manager:${farm}`, roleLabel({ role: 'manager', farm })]),
+    ];
+
     res.send(
       page(
         'Approve access?',
@@ -122,10 +133,10 @@ router.get('/approval', async (req, res, next) => {
   <input type="hidden" name="token" value="${escapeHtml(approvalToken(user))}">
   <fieldset class="roles">
     <legend>What can they do?</legend>
-    ${Object.entries(ROLES)
+    ${choices
       .map(
-        ([role, label], i) =>
-          `<label><input type="radio" name="role" value="${role}"${i === 0 ? ' checked' : ''}> ${escapeHtml(label)}</label>`
+        ([value, label], i) =>
+          `<label><input type="radio" name="role" value="${escapeHtml(value)}"${i === 0 ? ' checked' : ''}> ${escapeHtml(label)}</label>`
       )
       .join('')}
   </fieldset>
@@ -147,15 +158,16 @@ router.post('/approval', urlencoded({ extended: false }), async (req, res, next)
     const { decision } = req.body;
     if (decision !== 'approve' && decision !== 'reject') throw badRequest('Choose Approve or Reject.');
     const status = decision === 'approve' ? 'approved' : 'rejected';
-    // What the person may do, chosen as they are approved
-    const role = req.body.role ?? 'user';
-    if (status === 'approved' && !Object.hasOwn(ROLES, role)) throw badRequest('Choose what they can do.');
+    // What the person may do, chosen as they are approved: a role, or for a
+    // manager "manager:<farm>"
+    const [role, ...farm] = String(req.body.role ?? 'user').split(':');
+    const given = status === 'approved' ? await parseRole(role, farm.join(':')) : {};
 
     // Only a pending account can be decided, so an old link cannot undo a decision
     const id = readApprovalToken(req.body.token);
     const { count } = await prisma.user.updateMany({
       where: { id, status: 'pending' },
-      data: status === 'approved' ? { status, role } : { status },
+      data: { status, ...given },
     });
     if (count === 0) throw badRequest('This request was already decided or no longer exists.');
     const user = await prisma.user.findUnique({ where: { id } });
@@ -165,7 +177,7 @@ router.post('/approval', urlencoded({ extended: false }), async (req, res, next)
         `Access ${status}`,
         `<h1>Access ${status}</h1><p><strong>${escapeHtml(user.name)}</strong> ${
           status === 'approved'
-            ? `can now log in to the app as <strong>${escapeHtml(ROLES[role])}</strong>.`
+            ? `can now log in to the app as <strong>${escapeHtml(roleLabel(user))}</strong>.`
             : 'cannot log in to the app.'
         }</p>`
       )

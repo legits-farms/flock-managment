@@ -3,7 +3,8 @@ import { actor } from '../auth.js';
 import { coopLive, findBatch } from '../batches.js';
 import prisma from '../db.js';
 import { badRequest, parsePhoto, photoRows } from '../evidence.js';
-import { batchJson, createdBy, saleJson } from '../serialize.js';
+import { checkCoopOnFarm, saleScope } from '../scope.js';
+import { batchJsonFor, createdBy, saleJson } from '../serialize.js';
 import { parseDate, parseId, text } from '../validate.js';
 
 const router = Router();
@@ -151,7 +152,9 @@ router.get('/', async (req, res, next) => {
     const { batch, all } = req.query;
     if (batch !== undefined && !parseId(batch)) return res.json([]);
     const sales = await prisma.sale.findMany({
-      where: batch ? { sets: { some: { batchId: batch } } } : {},
+      where: {
+        AND: [batch ? { sets: { some: { batchId: batch } } } : {}, saleScope(req.user)],
+      },
       orderBy: { createdAt: 'desc' },
       take: batch || all === 'true' ? 1000 : 20,
       include: {
@@ -181,7 +184,10 @@ router.get('/:id/sets/:set/photo/:index?', async (req, res, next) => {
       set === null || position === null
         ? null
         : await prisma.photo.findFirst({
-            where: { saleSet: { saleId: req.params.id, position: set }, position },
+            where: {
+              saleSet: { saleId: req.params.id, position: set, sale: saleScope(req.user) },
+              position,
+            },
             omit: { data: false },
           });
     if (!photo) return res.status(404).json({ message: 'Not found' });
@@ -194,8 +200,8 @@ router.get('/:id/sets/:set/photo/:index?', async (req, res, next) => {
 // The picture of the payment, when one was added
 router.get('/:id/payment/photo', async (req, res, next) => {
   try {
-    const sale = await prisma.sale.findUnique({
-      where: { id: req.params.id },
+    const sale = await prisma.sale.findFirst({
+      where: { id: req.params.id, ...saleScope(req.user) },
       select: { paymentProof: true, paymentProofType: true },
     });
     if (!sale?.paymentProof) return res.status(404).json({ message: 'Not found' });
@@ -239,6 +245,7 @@ router.post('/', async (req, res, next) => {
       const batch = batches.get(batchId);
       const coop = batch.coops.find((other) => other.id === raw.coopId);
       if (!coop) throw badRequest('Select the coop of every set');
+      checkCoopOnFarm(req.user, batch, coop);
       // An app opened before males and females were counted for the whole sale
       // sends a gender for each set
       if (raw.gender && !GENDERS.includes(raw.gender)) {
@@ -415,7 +422,7 @@ router.post('/', async (req, res, next) => {
     ]);
 
     const updated = await Promise.all([...batches.values()].map((batch) => findBatch(batch.id)));
-    res.status(201).json({ id: sale.id, batches: updated.map(batchJson) });
+    res.status(201).json({ id: sale.id, batches: updated.map(batchJsonFor(req.user)) });
   } catch (err) {
     next(err);
   }

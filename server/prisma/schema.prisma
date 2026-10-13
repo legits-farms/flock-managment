@@ -19,8 +19,11 @@ model User {
   passwordHash String
   // pending | approved | rejected. A new account can do nothing until the manager approves it
   status       String   @default("pending")
-  // user | admin. Only an admin may date a mortality or add photos from the gallery
+  // user | admin | security | manager. Only an admin may date a mortality or add
+  // photos from the gallery; a security guard only registers mortality
   role         String   @default("user")
+  // Managers only: the one farm they see and work on
+  farm         String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }

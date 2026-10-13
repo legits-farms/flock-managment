@@ -3,15 +3,18 @@ import { actor } from '../auth.js';
 import { MORTALITY_TYPES, coopLive, findBatch, placeType } from '../batches.js';
 import prisma from '../db.js';
 import { badRequest, parseEvidence } from '../evidence.js';
+import { batchRecordScope, checkCoopOnFarm, coopRecordScope } from '../scope.js';
 import { batchJsonFor, createdBy, recordJson } from '../serialize.js';
 import { parseDate, parseId, requiredText, text } from '../validate.js';
 
-async function findBatchAndCoop({ batchId, coopId }) {
+// `user` is the logged-in person: a manager is refused a coop on another farm
+async function findBatchAndCoop({ batchId, coopId }, user) {
   const batch = await findBatch(batchId);
   if (!batch) throw badRequest('Select a farm & batch');
 
   const coop = batch.coops.find((other) => other.id === coopId);
   if (!coop) throw badRequest('Select a coop');
+  checkCoopOnFarm(user, batch, coop);
 
   return { batch, coop };
 }
@@ -43,9 +46,13 @@ const created = async (record, batch, user) => ({
 
 // Every kind of record shares the same list / create endpoints, and those with
 // photo evidence (mortality, vaccination) a photo endpoint. `model` is the name
-// of the record's table in Prisma. `only` narrows what a request lists, and
-// `extend` adds endpoints of the record's own.
-function recordRouter(model, create, { photos = true, only = () => ({}), extend } = {}) {
+// of the record's table in Prisma. `only` narrows what a request lists, `scope`
+// narrows it to a manager's farm, and `extend` adds endpoints of the record's own.
+function recordRouter(
+  model,
+  create,
+  { photos = true, only = () => ({}), scope = coopRecordScope, extend } = {}
+) {
   const router = Router();
 
   router.get('/', async (req, res, next) => {
@@ -55,7 +62,7 @@ function recordRouter(model, create, { photos = true, only = () => ({}), extend 
       const { batch, all } = req.query;
       if (batch !== undefined && !parseId(batch)) return res.json([]);
       const records = await prisma[model].findMany({
-        where: { ...(batch && { batchId: batch }), ...only(req) },
+        where: { ...(batch && { batchId: batch }), ...only(req), ...(await scope(req.user)) },
         orderBy: { createdAt: 'desc' },
         take: batch || all === 'true' ? 1000 : 20,
         include: {
@@ -77,7 +84,7 @@ function recordRouter(model, create, { photos = true, only = () => ({}), extend 
         const position = Number(req.params.index ?? 0);
         const photo = Number.isInteger(position)
           ? await prisma.photo.findFirst({
-              where: { [`${model}Id`]: req.params.id, position },
+              where: { [model]: { id: req.params.id, ...(await scope(req.user)) }, position },
               omit: { data: false },
             })
           : null;
@@ -178,7 +185,7 @@ function mortalityDecisions(router) {
 export const mortalityRouter = recordRouter(
   'mortality',
   async (body, by, user) => {
-    const { batch, coop } = await findBatchAndCoop(body);
+    const { batch, coop } = await findBatchAndCoop(body, user);
     const birds = parseBirds(body.birds, coop);
     if (body.type && !MORTALITY_TYPES.includes(body.type)) {
       throw badRequest('Select the mortality type');
@@ -217,31 +224,35 @@ export const mortalityRouter = recordRouter(
   { only: mortalityListed, extend: mortalityDecisions }
 );
 
-export const vaccinationRouter = recordRouter('vaccination', async (body, by, user) => {
-  const { batch, coop } = await findBatchAndCoop(body);
-  const birds = parseBirds(body.birds, coop);
+export const vaccinationRouter = recordRouter(
+  'vaccination',
+  async (body, by, user) => {
+    const { batch, coop } = await findBatchAndCoop(body, user);
+    const birds = parseBirds(body.birds, coop);
 
-  const record = await prisma.vaccination.create({
-    data: {
-      batchId: batch.id,
-      coopId: coop.id,
-      coopName: coop.name,
-      date: parseDate(body.date, 'Vaccination date is required'),
-      vaccine: requiredText(body.vaccine, 'Vaccine is required'),
-      schedule: text(body.schedule),
-      remarks: text(body.remarks),
-      birds,
-      photos: { create: parseEvidence(body, user) },
-      ...by,
-    },
-  });
-  return created(record, batch);
-});
+    const record = await prisma.vaccination.create({
+      data: {
+        batchId: batch.id,
+        coopId: coop.id,
+        coopName: coop.name,
+        date: parseDate(body.date, 'Vaccination date is required'),
+        vaccine: requiredText(body.vaccine, 'Vaccine is required'),
+        schedule: text(body.schedule),
+        remarks: text(body.remarks),
+        birds,
+        photos: { create: parseEvidence(body, user) },
+        ...by,
+      },
+    });
+    return created(record, batch, user);
+  },
+  { scope: batchRecordScope }
+);
 
 export const feedRouter = recordRouter(
   'feed',
-  async (body, by) => {
-    const { batch, coop } = await findBatchAndCoop(body);
+  async (body, by, user) => {
+    const { batch, coop } = await findBatchAndCoop(body, user);
 
     const record = await prisma.feed.create({
       data: {
@@ -257,15 +268,15 @@ export const feedRouter = recordRouter(
         ...by,
       },
     });
-    return created(record, batch);
+    return created(record, batch, user);
   },
   { photos: false }
 );
 
 export const weightRouter = recordRouter(
   'weight',
-  async (body, by) => {
-    const { batch, coop } = await findBatchAndCoop(body);
+  async (body, by, user) => {
+    const { batch, coop } = await findBatchAndCoop(body, user);
     const birds = parseBirds(body.birds, coop);
     const totalWeightKg = parseKg(body.totalWeightKg, 'Total weight');
 
@@ -283,7 +294,7 @@ export const weightRouter = recordRouter(
         ...by,
       },
     });
-    return created(record, batch);
+    return created(record, batch, user);
   },
   { photos: false }
 );

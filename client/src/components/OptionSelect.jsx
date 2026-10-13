@@ -4,7 +4,8 @@ import Dropdown from './Dropdown.jsx';
 const ADD = '__add__';
 
 // Dropdown over a fixed list of names, with a last "Add …" entry that lets the
-// person type a new one. `onAdd(name)` saves it and may reject with an Error.
+// person type a new one. `onAdd(name)` saves it and may reject with an Error;
+// without it nothing can be added.
 // `options` ({ value, label, note }) replaces `names` when the entries carry a
 // note; `noteLabel` then asks for the new one's note too, passed on as
 // `onAdd(name, note)`, which resolves to the value to select.
@@ -27,7 +28,7 @@ export default function OptionSelect({
 
   const options = [
     ...(listed ?? names.map((name) => ({ value: name, label: name }))),
-    { value: ADD, label: `＋ ${addLabel}` },
+    ...(onAdd ? [{ value: ADD, label: `＋ ${addLabel}` }] : []),
   ];
 
   function choose(next) {
