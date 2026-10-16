@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { parseRole } from '../auth.js';
+import { canApproveMortality, parseRole } from '../auth.js';
 import prisma from '../db.js';
 import { badRequest } from '../evidence.js';
 
@@ -20,6 +20,7 @@ const userJson = (user) => ({
   farm: user.farm ?? undefined,
   status: user.status,
   createdAt: user.createdAt,
+  canApproveMortality: canApproveMortality(user),
 });
 
 // Everyone who can log in, the newest first. Accounts still waiting for approval,

@@ -5,3 +5,9 @@ import { createContext, useContext } from 'react';
 export const AdminContext = createContext(false);
 
 export const useIsAdmin = () => useContext(AdminContext);
+
+// Whether the logged-in person is one of those who approve mortality. What anyone
+// else registers waits for them.
+export const ApproverContext = createContext(false);
+
+export const useIsApprover = () => useContext(ApproverContext);

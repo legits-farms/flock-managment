@@ -4,6 +4,18 @@ import { badRequest } from './evidence.js';
 import { listedFarm } from './options.js';
 import { parseId } from './validate.js';
 
+// The accounts that approve mortality, by their phone numbers (comma separated in
+// MORTALITY_APPROVER_PHONES). What anyone else registers waits for one of them, and
+// takes no birds off the coop until it is approved. Compared by the last 10
+// digits, so a number saved with its country code ("918105369922") is the same.
+const lastTen = (phone) => String(phone ?? '').replace(/\D/g, '').slice(-10);
+const MORTALITY_APPROVERS = (process.env.MORTALITY_APPROVER_PHONES || '8105369922,9900000202')
+  .split(',')
+  .map(lastTen)
+  .filter(Boolean);
+export const canApproveMortality = (user) =>
+  Boolean(user?.phone) && MORTALITY_APPROVERS.includes(lastTen(user.phone));
+
 export const signToken = (user) =>
   jwt.sign({ sub: user.id, name: user.name }, process.env.JWT_SECRET, {
     expiresIn: '30d',
@@ -27,7 +39,7 @@ export async function requireAuth(req, res, next) {
   try {
     const approved = await prisma.user.findFirst({
       where: { id: payload.sub, status: 'approved' },
-      select: { role: true, farm: true },
+      select: { role: true, farm: true, phone: true },
     });
     if (!approved) return res.status(401).json({ message: 'Please log in again' });
     // A manager is of one farm; without it there is nothing they may see
@@ -40,6 +52,7 @@ export async function requireAuth(req, res, next) {
       role: approved.role,
       farm: approved.role === 'manager' ? approved.farm : null,
       isAdmin: approved.role === 'admin',
+      canApproveMortality: canApproveMortality(approved),
     };
     next();
   } catch (err) {

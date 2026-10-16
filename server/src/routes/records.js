@@ -118,21 +118,23 @@ function parseMortalityDate(value, user) {
 }
 
 // Which mortality a request lists. Everything counted elsewhere is approved, so
-// that is all the app is given, apart from the admin's list of what is waiting
+// that is all the app is given, apart from the approvers' list of what is waiting
 // (?status=pending) and a security guard, who sees what became of their entries.
 function mortalityListed(req) {
-  if (req.query.status === 'pending') return { status: 'pending' };
+  if (req.query.status === 'pending') {
+    return req.user.canApproveMortality ? { status: 'pending' } : { id: '' };
+  }
   if (req.user.role === 'security') return {};
   return { status: 'approved' };
 }
 
-// An admin approving or rejecting mortality a security guard registered. Only on
+// The approver approving or rejecting mortality someone else registered. Only on
 // approval are the birds taken off the coop.
 function mortalityDecisions(router) {
   router.post('/:id/decision', async (req, res, next) => {
     try {
-      if (!req.user.isAdmin) {
-        return res.status(403).json({ message: 'Only an admin can approve mortality' });
+      if (!req.user.canApproveMortality) {
+        return res.status(403).json({ message: 'Only the admin can approve mortality' });
       }
       const { decision } = req.body;
       if (decision !== 'approve' && decision !== 'reject') {
@@ -194,8 +196,8 @@ export const mortalityRouter = recordRouter(
     const date = parseMortalityDate(body.date, user);
     const photos = parseEvidence(body, user);
 
-    // What a security guard registers waits for an admin, and takes no birds off the coop yet
-    const pending = user.role === 'security';
+    // What anyone but an approver registers waits for one, and takes no birds off the coop yet
+    const pending = !user.canApproveMortality;
     const save = prisma.mortality.create({
       data: {
         batchId: batch.id,
@@ -219,7 +221,8 @@ export const mortalityRouter = recordRouter(
             prisma.coop.update({ where: { id: coop.id }, data: { mortality: { increment: birds } } }),
           ]
     );
-    return created(record, batch, user);
+    // 'pending' tells the app to say it went for approval
+    return { ...(await created(record, batch, user)), status: record.status };
   },
   { only: mortalityListed, extend: mortalityDecisions }
 );

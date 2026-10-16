@@ -25,6 +25,18 @@ export function partOf(name) {
 // Coop 1 can be split into 8 parts, any other coop into 6
 export const maxParts = (coop) => (keyOf(coop) === 'coop 1' ? 8 : 6);
 
+// A farm's coop names in the order they were added, except that a coop's parts
+// come right after it, however much later they were added
+function partsAfterCoop(names) {
+  const coopOf = (name) => {
+    const part = partOf(name);
+    return part && names.some((other) => keyOf(other) === keyOf(part.coop)) ? part.coop : null;
+  };
+  return names
+    .filter((name) => !coopOf(name))
+    .flatMap((coop) => [coop, ...names.filter((name) => keyOf(coopOf(name) ?? '') === keyOf(coop))]);
+}
+
 // The same coop name can exist on several farms, so a coop's key carries its farm
 const coopKey = (farm, name) => `${keyOf(farm)}|${keyOf(name)}`;
 
@@ -82,7 +94,9 @@ export async function listOptions() {
     coops: Object.fromEntries(
       farms.map((farm) => [
         farm,
-        coops.filter((coop) => keyOf(coop.farm) === keyOf(farm)).map((coop) => coop.name),
+        partsAfterCoop(
+          coops.filter((coop) => keyOf(coop.farm) === keyOf(farm)).map((coop) => coop.name)
+        ),
       ])
     ),
   };
