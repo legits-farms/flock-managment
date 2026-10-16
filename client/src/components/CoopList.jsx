@@ -6,17 +6,21 @@ import {
   coopGroups,
   coopLive,
   coopsOnFarm,
+  coopsWithParts,
   farmSummary,
   formatNumber,
+  canAddPart,
+  partName,
+  partOf,
 } from '../flock.js';
 import LoadStatus from './LoadStatus.jsx';
 import NameSheet from './NameSheet.jsx';
 
 const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
-// The house a coop is part of: its name without the partition letter, so
-// "Coop 1A" … "Coop 1H" are all "Coop 1" and "Brooding A" is "Brooding"
-const houseOf = (name) => name.trim().replace(/(\s+|(?<=\d))[a-z]$/i, '');
+// The house a coop is part of: "Coop 1A" and "Coop 1 Sonali" are both in
+// "Coop 1", and "Brooding A" is in "Brooding"
+const houseOf = (name) => partOf(name)?.coop ?? name.trim().replace(/\s+[a-z]$/i, '');
 
 // The farms and their coops on one screen: pick a farm, see what it holds, then
 // its coops, one card each: those holding birds first, then the empty ones with
@@ -37,7 +41,7 @@ export default function CoopList({
 }) {
   const [chosenFarm, setChosenFarm] = useState(null);
   const [chosenHouse, setChosenHouse] = useState(null);
-  // Name sheet open: 'coop' | 'farm' | null
+  // Name sheet open: 'coop' | 'part' | 'farm' | null
   const [adding, setAdding] = useState(null);
 
   if (loading || error) return <LoadStatus loading={loading} error={error} onRetry={onRetry} />;
@@ -77,7 +81,14 @@ export default function CoopList({
   // A farm just added is chosen by the name typed, whatever its listed spelling
   const farm = farms.find((name) => chosenFarm && sameName(name, chosenFarm)) ?? farms[0];
   const groups = coopGroups(batches).filter((group) => sameName(group.farm, farm));
-  const listed = coopsOnFarm(coopsByFarm, farm);
+  // A coop split into parts is listed as its parts, unless birds were put in it whole
+  const withParts = coopsWithParts(coopsOnFarm(coopsByFarm, farm));
+  const split = withParts.filter((coop) => coop.parts.length > 0);
+  const listed = coopsOnFarm(coopsByFarm, farm).filter(
+    (name) =>
+      !split.some((coop) => sameName(coop.name, name)) ||
+      groups.some((group) => sameName(group.name, name))
+  );
   const summary = farmSummary(batches, farm);
 
   // Every listed coop of the farm, in list order, then any in use that are not listed
@@ -106,13 +117,28 @@ export default function CoopList({
   const inUse = shown.filter((coop) => coop.live > 0);
   const empty = shown.filter((coop) => coop.live === 0);
 
+  // With one coop picked, what is added is a part of it ("Coop 5A", "Coop 5 Sonali"),
+  // unless birds are in the coop as a whole or it has all its parts
+  const houseCoop = house && withParts.find((coop) => sameName(coop.name, house));
+  const wholeInUse =
+    houseCoop && shown.some(({ name, live }) => sameName(name, houseCoop.name) && live > 0);
+  const canSplit = houseCoop && !wholeInUse && canAddPart(houseCoop);
+
   return (
     <div className="manage">
       <div className="list-head">
         <h2>Farms &amp; Coops</h2>
-        <button type="button" className="primary small" onClick={() => setAdding('coop')}>
-          ＋ Add Coop
-        </button>
+        {houseCoop ? (
+          canSplit && (
+            <button type="button" className="primary small" onClick={() => setAdding('part')}>
+              ＋ Add Part
+            </button>
+          )
+        ) : (
+          <button type="button" className="primary small" onClick={() => setAdding('coop')}>
+            ＋ Add Coop
+          </button>
+        )}
       </div>
 
       <div className="subtabs" role="tablist" aria-label="Farm">
@@ -187,6 +213,18 @@ export default function CoopList({
           label="Coop Name"
           submitLabel="Add Coop"
           onSubmit={async (name) => onOptions(await addCoopName(farm, name))}
+          onClose={() => setAdding(null)}
+        />
+      )}
+      {adding === 'part' && houseCoop && (
+        <NameSheet
+          title={`Add a Part to ${houseCoop.name}`}
+          label="Part Name, e.g. Sonali or A"
+          submitLabel="Add Part"
+          onSubmit={async (label) => {
+            if (!label.trim()) throw new Error('Enter a name for the part.');
+            onOptions(await addCoopName(farm, partName(houseCoop.name, label)));
+          }}
           onClose={() => setAdding(null)}
         />
       )}

@@ -5,7 +5,7 @@ import { coopLive, findBatch } from '../batches.js';
 import prisma from '../db.js';
 import { badRequest, parseEvidence } from '../evidence.js';
 import { checkCoopFree } from '../occupancy.js';
-import { listedCoop, listedFarm } from '../options.js';
+import { checkWholeCoop, listedCoop, listedFarm } from '../options.js';
 import { checkCoopOnFarm, checkFarm, shiftScope } from '../scope.js';
 import { addedBy, batchJsonFor, createdBy, recordJson } from '../serialize.js';
 import { parseDate, parseId, requiredText } from '../validate.js';
@@ -52,6 +52,7 @@ router.post('/', async (req, res, next) => {
     if (!coopName) throw badRequest('Select the coop to shift to');
     checkBroodingAge(batch, coopName);
     await checkCoopFree(batch, farm, coopName);
+    await checkWholeCoop(coopName, farm);
 
     const birds = Number(req.body.birds);
     if (!Number.isInteger(birds) || birds < 1) {

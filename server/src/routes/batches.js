@@ -5,7 +5,7 @@ import { findBatch, withCoops } from '../batches.js';
 import prisma from '../db.js';
 import { badRequest } from '../evidence.js';
 import { checkCoopFree } from '../occupancy.js';
-import { listedCoop, listedFarm } from '../options.js';
+import { checkWholeCoop, listedCoop, listedFarm } from '../options.js';
 import { batchScope, checkCoopOnFarm, checkFarm } from '../scope.js';
 import { addedBy, batchJsonFor, createdBy } from '../serialize.js';
 import { parseDate, requiredText, text } from '../validate.js';
@@ -113,6 +113,7 @@ router.post('/:id/coops', async (req, res, next) => {
     if (!name) return res.status(400).json({ message: 'Select a coop from the list' });
     checkBroodingAge(batch, name);
     await checkCoopFree(batch, farm, name);
+    await checkWholeCoop(name, farm);
     if (!Number.isInteger(birds) || birds < 1) {
       return res
         .status(400)

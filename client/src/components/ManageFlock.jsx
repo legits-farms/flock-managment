@@ -11,12 +11,16 @@ import {
   broodingDue,
   coopsForBatch,
   coopsOnFarm,
+  coopsWithParts,
   dueVaccineNames,
   feedCost,
   formatKg,
   formatNumber,
   formatRupees,
+  canAddPart,
   liveBirds,
+  partLabel,
+  partName,
   totalMortality,
   totalSold,
   unallocatedBirds,
@@ -30,6 +34,9 @@ import Dropdown from './Dropdown.jsx';
 import OptionSelect from './OptionSelect.jsx';
 import SoldList from './SoldList.jsx';
 import VaccinationSchedule from './VaccinationSchedule.jsx';
+
+// The "Part" choice of a coop not split into parts
+const WHOLE = '__whole__';
 
 const formatDate = (value) =>
   new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -56,7 +63,9 @@ export default function ManageFlock({
 }) {
   // A batch can be spread over several farms; its own is offered first
   const [farm, setFarm] = useState(batch.shiftToFarm ?? '');
+  // The coop chosen, and the part of it: one of its parts, or WHOLE for a coop not split up
   const [name, setName] = useState('');
+  const [part, setPart] = useState('');
   const [birds, setBirds] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -81,16 +90,33 @@ export default function ManageFlock({
   const broodingBirds = brooding.reduce((sum, entry) => sum + entry.birds, 0);
   // A coop can only be used once per batch
   const used = new Set(batch.coops.map((coop) => coopKey(batch, coop)));
-  // … and a coop holds only one batch at a time
-  const freeCoops = coopsForBatch(coopsOnFarm(coopsByFarm, farm), batch).filter(
-    (coop) =>
-      !used.has(coopKey({ shiftToFarm: farm }, { name: coop })) &&
-      !coopOccupant(allBatches, farm, coop, batch)
+  // … and a coop (or a part of one) holds only one batch at a time
+  const isFree = (coop) =>
+    !used.has(coopKey({ shiftToFarm: farm }, { name: coop })) &&
+    !coopOccupant(allBatches, farm, coop, batch);
+  const listedCoops = coopsWithParts(coopsForBatch(coopsOnFarm(coopsByFarm, farm), batch));
+  // A coop split into parts is offered while a part is free or another can be added
+  const freeCoops = listedCoops.filter((coop) =>
+    coop.parts.length === 0 ? isFree(coop.name) : coop.parts.some(isFree) || canAddPart(coop)
   );
+  const chosen = freeCoops.find((coop) => coop.name === name);
+  const partOptions = chosen
+    ? [
+        ...(chosen.parts.length === 0 ? [{ value: WHOLE, label: 'Whole coop' }] : []),
+        ...chosen.parts.filter(isFree).map((coop) => ({ value: coop, label: partLabel(coop) })),
+      ]
+    : [];
 
   function chooseFarm(next) {
     setFarm(next);
     setName('');
+    setPart('');
+  }
+
+  function chooseCoop(next) {
+    setName(next);
+    const coop = listedCoops.find((other) => other.name === next);
+    setPart(coop && coop.parts.length === 0 ? WHOLE : '');
   }
   const live = liveBirds(batch);
   // null until the batch's vaccination records have loaded
@@ -121,8 +147,8 @@ export default function ManageFlock({
 
   async function handleAdd(e) {
     e.preventDefault();
-    if (!farm || !name) {
-      setError('Please select a farm and a coop.');
+    if (!farm || !name || !part) {
+      setError('Please select a farm, a coop and its part.');
       return;
     }
     const count = Number(birds);
@@ -130,8 +156,10 @@ export default function ManageFlock({
       setError(`Only ${formatNumber(unallocated)} birds are left to allocate.`);
       return;
     }
-    if (await run(() => addCoop(batch._id, { farm, name, birds: count }))) {
+    const coop = part === WHOLE ? name : part;
+    if (await run(() => addCoop(batch._id, { farm, name: coop, birds: count }))) {
       setName('');
+      setPart('');
       setBirds('');
     }
   }
@@ -328,13 +356,36 @@ export default function ManageFlock({
             <OptionSelect
               id="coop"
               value={name}
-              names={freeCoops}
-              onChange={setName}
+              names={freeCoops.map((coop) => coop.name)}
+              onChange={chooseCoop}
               placeholder={farm ? 'Select coop' : 'Select farm first'}
               addLabel="Add a coop"
               onAdd={async (coop) => onOptions(await addCoopName(farm, coop))}
             />
           </div>
+
+          {chosen && (
+            <div className="field">
+              <label htmlFor="coop-part">Part</label>
+              <OptionSelect
+                id="coop-part"
+                value={part}
+                options={partOptions}
+                onChange={setPart}
+                placeholder="Select part"
+                addLabel="Add a part, e.g. Sonali or A"
+                onAdd={
+                  canAddPart(chosen)
+                    ? async (label) => {
+                        const added = partName(chosen.name, label);
+                        onOptions(await addCoopName(farm, added));
+                        return added;
+                      }
+                    : undefined
+                }
+              />
+            </div>
+          )}
 
           <label className="field">
             <span>Number of Birds</span>
