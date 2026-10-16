@@ -6,6 +6,7 @@ import {
   coopOccupant,
   coopsForBatch,
   coopsOnFarm,
+  coopsWithParts,
   formatNumber,
 } from '../flock.js';
 import Dropdown from './Dropdown.jsx';
@@ -65,12 +66,15 @@ export default function ShiftForm({
   const lost = Number(mortality) || 0;
 
   // Every coop of the destination farm the batch can go to, except the one the
-  // birds are leaving and any that another batch is in
-  const toCoops = coopsForBatch(coopsOnFarm(coopsByFarm, toFarm), entry?.batch).filter(
-    (name) =>
-      !(group && sameName(name, group.name) && sameName(toFarm, group.farm)) &&
-      !(entry && coopOccupant(batches, toFarm, name, entry.batch)),
-  );
+  // birds are leaving and any that another batch is in. A coop split into parts
+  // is offered part by part.
+  const toCoops = coopsWithParts(coopsForBatch(coopsOnFarm(coopsByFarm, toFarm), entry?.batch))
+    .flatMap((coop) => (coop.parts.length > 0 ? coop.parts : [coop.name]))
+    .filter(
+      (name) =>
+        !(group && sameName(name, group.name) && sameName(toFarm, group.farm)) &&
+        !(entry && coopOccupant(batches, toFarm, name, entry.batch)),
+    );
 
   function chooseFromFarm(farm) {
     setFromFarm(farm);

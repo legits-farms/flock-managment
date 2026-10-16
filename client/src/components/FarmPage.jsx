@@ -5,6 +5,7 @@ import {
   broodingAge,
   coopGroups,
   coopLive,
+  coopsWithParts,
   farmSummary,
   formatNumber,
   liveBirds,
@@ -45,14 +46,21 @@ export default function FarmPage({
   const { records, error } = useBatchRecords(batches.map((batch) => batch._id));
 
   const inUse = coopGroups(allBatches).filter((group) => sameName(group.farm, farm));
+  // A coop split into parts is listed as its parts, unless birds were put in it whole
+  const split = coopsWithParts(coopNames).filter((coop) => coop.parts.length > 0);
+  const listed = coopNames.filter(
+    (name) =>
+      !split.some((coop) => sameName(coop.name, name)) ||
+      inUse.some((group) => sameName(group.name, name))
+  );
   // Every listed coop of the farm, in list order, then any in use that are not listed
   const coops = [
-    ...coopNames.map((name) => ({
+    ...listed.map((name) => ({
       name,
       group: inUse.find((group) => sameName(group.name, name)),
     })),
     ...inUse
-      .filter((group) => !coopNames.some((name) => sameName(name, group.name)))
+      .filter((group) => !listed.some((name) => sameName(name, group.name)))
       .map((group) => ({ name: group.name, group })),
   ];
   // null until the vaccination records have loaded

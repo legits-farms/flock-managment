@@ -5,22 +5,25 @@ import { addedBy } from './serialize.js';
 // What a new database starts with. These are always listed first, in this
 // order, ahead of any farms added later.
 const DEFAULT_FARMS = ['Bhaktharahali', 'HQ'];
-// A coop split into partitions is listed once per partition: "Coop 1A", "Coop 1B", …
-const partitions = (coop, count) =>
-  Array.from({ length: count }, (_, i) => `Coop ${coop}${String.fromCharCode(65 + i)}`);
-// The coops each default farm starts with
-const DEFAULT_COOPS = {
+// The coops each default farm starts with. A coop is split into parts only
+// when it is needed, by adding them: "Coop 1A", "Coop 1B", …
+export const DEFAULT_COOPS = {
   hq: ['Coop 1', 'Coop 2', 'Coop 3', 'Coop 4'],
-  // Two brooding houses, Coop 1 in 8 partitions (A–H) and Coops 2–7 in 6 each (A–F)
-  bhaktharahali: [
-    'Brooding A',
-    'Brooding B',
-    ...partitions(1, 8),
-    ...[2, 3, 4, 5, 6, 7].flatMap((coop) => partitions(coop, 6)),
-  ],
+  bhaktharahali: ['Brooding A', 'Brooding B', ...[1, 2, 3, 4, 5, 6, 7].map((n) => `Coop ${n}`)],
 };
 
 const keyOf = (name) => name.trim().toLowerCase();
+
+// A part of a coop is the coop's name followed by a letter or a name: "Coop 5C"
+// is part C of "Coop 5", "Coop 4 Sonali" its part Sonali. { coop, label }, or
+// null for any other name.
+export function partOf(name) {
+  const match = /^(.*\d)\s*([a-z].*)$/i.exec(name.trim());
+  return match ? { coop: match[1], label: match[2] } : null;
+}
+
+// Coop 1 can be split into 8 parts, any other coop into 6
+export const maxParts = (coop) => (keyOf(coop) === 'coop 1' ? 8 : 6);
 
 // The same coop name can exist on several farms, so a coop's key carries its farm
 const coopKey = (farm, name) => `${keyOf(farm)}|${keyOf(name)}`;
@@ -138,6 +141,16 @@ export async function addCoop(rawFarm, rawName, who) {
   if (!farm) throw badRequest('Select the farm this coop is on');
   const name = parseName(rawName, 'Coop');
   if (await listedCoop(name, farm)) throw badRequest(`Coop "${name}" already exists on ${farm}`);
+  // A part of a listed coop stays within that coop's number of parts
+  const part = partOf(name);
+  const coop = part && (await listedCoop(part.coop, farm));
+  if (coop) {
+    const { coops } = await listOptions();
+    const parts = coops[farm].filter((other) => keyOf(partOf(other)?.coop ?? '') === keyOf(coop));
+    if (parts.length >= maxParts(coop)) {
+      throw badRequest(`${coop} can have only ${maxParts(coop)} parts`);
+    }
+  }
 
   await prisma.option.create({
     data: { kind: 'coop', farm, name, key: coopKey(farm, name), ...addedBy(who) },
@@ -168,4 +181,13 @@ export async function listedCoop(rawName, rawFarm) {
   const farm = farms.find((other) => keyOf(other) === keyOf(String(rawFarm ?? '')));
   if (!farm) return null;
   return coops[farm].find((coop) => keyOf(coop) === keyOf(name)) ?? null;
+}
+
+// A coop split into parts takes birds part by part, not as a whole
+export async function checkWholeCoop(coop, farm) {
+  const { coops } = await listOptions();
+  const listed = Object.entries(coops).find(([name]) => keyOf(name) === keyOf(farm))?.[1] ?? [];
+  if (listed.some((name) => keyOf(partOf(name)?.coop ?? '') === keyOf(coop))) {
+    throw badRequest(`${coop} is split into parts. Select one of its parts`);
+  }
 }

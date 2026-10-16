@@ -502,3 +502,46 @@ export function coopsOnFarm(coopsByFarm, farm) {
   const key = Object.keys(coopsByFarm).find((name) => name.trim().toLowerCase() === wanted);
   return key ? coopsByFarm[key] : [];
 }
+
+// A part of a coop is the coop's name followed by a letter or a name: "Coop 5C"
+// is part C of "Coop 5", "Coop 4 Sonali" its part Sonali. { coop, label }, or
+// null for any other name.
+export function partOf(name) {
+  const match = /^(.*\d)\s*([a-z].*)$/i.exec(name.trim());
+  return match ? { coop: match[1], label: match[2] } : null;
+}
+
+// The full name of a coop's part from what was typed for it: a letter goes
+// right after the number ("Coop 5C"), a name after a space ("Coop 4 Sonali")
+export function partName(coop, label) {
+  const text = label.trim();
+  return text.length === 1 ? `${coop}${text.toUpperCase()}` : `${coop} ${text}`;
+}
+
+// How a part is shown under its coop: "Part C", or its name
+export function partLabel(name) {
+  const { label } = partOf(name);
+  return label.length === 1 ? `Part ${label.toUpperCase()}` : label;
+}
+
+// Coop 1 can be split into 8 parts, any other coop into 6
+export const maxParts = (coop) => (coop.trim().toLowerCase() === 'coop 1' ? 8 : 6);
+
+// A farm's listed coop names as coops with their parts: [{ name, parts: [names] }],
+// both in list order. A part whose coop is not listed counts as a coop of its own.
+export function coopsWithParts(names) {
+  const same = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+  const coopOf = (name) => {
+    const part = partOf(name);
+    return part && names.some((other) => same(other, part.coop)) ? part.coop : null;
+  };
+  const coops = names.filter((name) => !coopOf(name)).map((name) => ({ name, parts: [] }));
+  for (const name of names) {
+    const coop = coopOf(name) && coops.find((other) => same(other.name, coopOf(name)));
+    if (coop) coop.parts.push(name);
+  }
+  return coops;
+}
+
+// Whether a coop ({ name, parts }) can be split into one more part
+export const canAddPart = (coop) => coop.parts.length < maxParts(coop.name);
