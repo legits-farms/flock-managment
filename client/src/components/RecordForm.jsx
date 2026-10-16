@@ -230,7 +230,7 @@ export default function RecordForm({
         ...details,
         ...evidencePayload(evidence),
       });
-      onSaved(saved.batch);
+      onSaved(saved.batch, saved.status);
     } catch (err) {
       setError(err.message);
       setSubmitting(false);

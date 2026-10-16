@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AdminContext } from './admin.js';
+import { AdminContext, ApproverContext } from './admin.js';
 import { getBatches, getMe, getOptions, hasToken, logout } from './api.js';
 import { coopGroups, coopsOnFarm } from './flock.js';
 import logo from './assets/logo.webp';
@@ -52,14 +52,16 @@ export default function App() {
 
   return (
     <AdminContext.Provider value={Boolean(user.isAdmin)}>
-      <Screen
-        key={user.id}
-        user={user}
-        onLogout={() => {
-          logout();
-          setUser(null);
-        }}
-      />
+      <ApproverContext.Provider value={Boolean(user.canApproveMortality)}>
+        <Screen
+          key={user.id}
+          user={user}
+          onLogout={() => {
+            logout();
+            setUser(null);
+          }}
+        />
+      </ApproverContext.Provider>
     </AdminContext.Provider>
   );
 }
@@ -138,6 +140,8 @@ function Flock({ user, onLogout }) {
   const [managingId, setManagingId] = useState(null);
   // Dashboard form in progress: 'mortality' | 'vaccination' | 'feed' | 'weight' | 'shift' | 'sale' | null
   const [action, setAction] = useState(null);
+  // Said on the dashboard after a form is saved, e.g. that mortality went for approval
+  const [notice, setNotice] = useState('');
   // Coop and batch the shift form starts on: { coopKey, batchId }, or null
   const [shiftFrom, setShiftFrom] = useState(null);
   // Key of the coop page being viewed (see coopGroups), or null
@@ -187,6 +191,7 @@ function Flock({ user, onLogout }) {
   }
 
   function goToTab(id) {
+    setNotice('');
     setEntering(false);
     setManagingId(null);
     setAction(null);
@@ -278,24 +283,39 @@ function Flock({ user, onLogout }) {
               key={action}
               type={action}
               batches={batches}
-              onSaved={(batch) => {
+              onSaved={(batch, status) => {
                 handleUpdated(batch);
                 setAction(null);
+                setNotice(
+                  status === 'pending'
+                    ? 'Mortality sent to the admin for approval. The birds come off the coop once it is approved.'
+                    : ''
+                );
               }}
               onCancel={() => setAction(null)}
               onNavigate={goToTab}
             />
           ) : (
-            <Dashboard
-              batches={batches}
-              loading={loading}
-              error={error}
-              onRetry={loadBatches}
-              onNavigate={goToTab}
-              onAction={setAction}
-              onEnter={() => setEntering(true)}
-              onUpdated={handleUpdated}
-            />
+            <>
+              {notice && (
+                <p className="hint ok" role="status">
+                  {notice}
+                </p>
+              )}
+              <Dashboard
+                batches={batches}
+                loading={loading}
+                error={error}
+                onRetry={loadBatches}
+                onNavigate={goToTab}
+                onAction={(next) => {
+                  setNotice('');
+                  setAction(next);
+                }}
+                onEnter={() => setEntering(true)}
+                onUpdated={handleUpdated}
+              />
+            </>
           ))}
         {!entering &&
           tab === 'batches' &&

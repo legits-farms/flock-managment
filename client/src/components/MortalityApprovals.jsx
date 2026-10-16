@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useIsAdmin } from '../admin.js';
+import { useIsApprover } from '../admin.js';
 import { decideMortality, getPendingMortalities } from '../api.js';
 import { formatNumber, mortalityLabel, photoCount } from '../flock.js';
 import PhotoLink from './PhotoLink.jsx';
@@ -8,12 +8,12 @@ import RecordDetail from './RecordDetail.jsx';
 const formatDate = (value) =>
   new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
-// Mortality registered by security that waits for the admin. The birds are only
+// Mortality registered by anyone but the approver, waiting for them. The birds are only
 // taken off the coop once it is approved; rejected, they never are. Shows nothing
 // to anyone else, or when nothing is waiting. Pressing an entry opens everything
 // saved with it, in place of the dashboard (`onViewing` says when).
 export default function MortalityApprovals({ onUpdated, onViewing }) {
-  const isAdmin = useIsAdmin();
+  const isApprover = useIsApprover();
   const [records, setRecords] = useState([]);
   // Id of the record being approved or rejected, so it cannot be pressed twice
   const [deciding, setDeciding] = useState('');
@@ -29,7 +29,7 @@ export default function MortalityApprovals({ onUpdated, onViewing }) {
   }
 
   useEffect(() => {
-    if (!isAdmin) return undefined;
+    if (!isApprover) return undefined;
     let cancelled = false;
     getPendingMortalities()
       .then((pending) => {
@@ -40,7 +40,7 @@ export default function MortalityApprovals({ onUpdated, onViewing }) {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin]);
+  }, [isApprover]);
 
   async function decide(record, decision) {
     setDeciding(record._id);
@@ -57,7 +57,7 @@ export default function MortalityApprovals({ onUpdated, onViewing }) {
     }
   }
 
-  if (!isAdmin || records.length === 0) return null;
+  if (!isApprover || records.length === 0) return null;
 
   const decisions = (record) => (
     <div className="option-add-actions">
@@ -101,7 +101,7 @@ export default function MortalityApprovals({ onUpdated, onViewing }) {
         Mortality to Approve <span className="approvals-count">{records.length}</span>
       </h2>
       <p className="help">
-        Registered by security. The birds are taken off the coop only when you approve.
+        Registered by the staff. The birds are taken off the coop only when you approve.
       </p>
       {error && (
         <p className="error" role="alert">

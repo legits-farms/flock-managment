@@ -1,7 +1,14 @@
 import { Router, urlencoded } from 'express';
 import bcrypt from 'bcryptjs';
 import prisma from '../db.js';
-import { ROLES, parseRole, requireAuth, roleLabel, signToken } from '../auth.js';
+import {
+  ROLES,
+  canApproveMortality,
+  parseRole,
+  requireAuth,
+  roleLabel,
+  signToken,
+} from '../auth.js';
 import {
   approvalConfigured,
   approvalToken,
@@ -24,6 +31,7 @@ const profile = (user) => ({
   role: user.role,
   farm: user.role === 'manager' ? (user.farm ?? undefined) : undefined,
   isAdmin: user.role === 'admin',
+  canApproveMortality: canApproveMortality(user),
 });
 
 const session = (user) => ({

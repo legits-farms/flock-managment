@@ -4,6 +4,11 @@ import { badRequest } from './evidence.js';
 import { listedFarm } from './options.js';
 import { parseId } from './validate.js';
 
+// The one account that approves mortality, by its phone number. What anyone else
+// registers waits for it, and takes no birds off the coop until it is approved.
+const MORTALITY_APPROVER = process.env.MORTALITY_APPROVER_PHONE || '8105369922';
+export const canApproveMortality = (user) => user?.phone === MORTALITY_APPROVER;
+
 export const signToken = (user) =>
   jwt.sign({ sub: user.id, name: user.name }, process.env.JWT_SECRET, {
     expiresIn: '30d',
@@ -27,7 +32,7 @@ export async function requireAuth(req, res, next) {
   try {
     const approved = await prisma.user.findFirst({
       where: { id: payload.sub, status: 'approved' },
-      select: { role: true, farm: true },
+      select: { role: true, farm: true, phone: true },
     });
     if (!approved) return res.status(401).json({ message: 'Please log in again' });
     // A manager is of one farm; without it there is nothing they may see
@@ -40,6 +45,7 @@ export async function requireAuth(req, res, next) {
       role: approved.role,
       farm: approved.role === 'manager' ? approved.farm : null,
       isAdmin: approved.role === 'admin',
+      canApproveMortality: canApproveMortality(approved),
     };
     next();
   } catch (err) {
