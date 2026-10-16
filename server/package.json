@@ -10,7 +10,8 @@
     "db:migrate": "prisma migrate deploy",
     "copy:mongo": "node prisma/copy-from-mongo.js",
     "seed:demo": "node src/seed-demo.js",
-    "reset:coops": "node src/reset-coops.js"
+    "reset:coops": "node src/reset-coops.js",
+    "make:admin": "node src/make-admin.js"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",

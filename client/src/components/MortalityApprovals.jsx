@@ -8,7 +8,7 @@ import RecordDetail from './RecordDetail.jsx';
 const formatDate = (value) =>
   new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
-// Mortality registered by anyone but the approver, waiting for them. The birds are only
+// Mortality registered by anyone but an approver, waiting for one of them. The birds are only
 // taken off the coop once it is approved; rejected, they never are. Shows nothing
 // to anyone else, or when nothing is waiting. Pressing an entry opens everything
 // saved with it, in place of the dashboard (`onViewing` says when).

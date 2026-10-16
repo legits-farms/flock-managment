@@ -118,7 +118,7 @@ function parseMortalityDate(value, user) {
 }
 
 // Which mortality a request lists. Everything counted elsewhere is approved, so
-// that is all the app is given, apart from the approver's list of what is waiting
+// that is all the app is given, apart from the approvers' list of what is waiting
 // (?status=pending) and a security guard, who sees what became of their entries.
 function mortalityListed(req) {
   if (req.query.status === 'pending') {
@@ -196,7 +196,7 @@ export const mortalityRouter = recordRouter(
     const date = parseMortalityDate(body.date, user);
     const photos = parseEvidence(body, user);
 
-    // What anyone but the approver registers waits for them, and takes no birds off the coop yet
+    // What anyone but an approver registers waits for one, and takes no birds off the coop yet
     const pending = !user.canApproveMortality;
     const save = prisma.mortality.create({
       data: {

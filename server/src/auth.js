@@ -4,10 +4,17 @@ import { badRequest } from './evidence.js';
 import { listedFarm } from './options.js';
 import { parseId } from './validate.js';
 
-// The one account that approves mortality, by its phone number. What anyone else
-// registers waits for it, and takes no birds off the coop until it is approved.
-const MORTALITY_APPROVER = process.env.MORTALITY_APPROVER_PHONE || '8105369922';
-export const canApproveMortality = (user) => user?.phone === MORTALITY_APPROVER;
+// The accounts that approve mortality, by their phone numbers (comma separated in
+// MORTALITY_APPROVER_PHONES). What anyone else registers waits for one of them, and
+// takes no birds off the coop until it is approved. Compared by the last 10
+// digits, so a number saved with its country code ("918105369922") is the same.
+const lastTen = (phone) => String(phone ?? '').replace(/\D/g, '').slice(-10);
+const MORTALITY_APPROVERS = (process.env.MORTALITY_APPROVER_PHONES || '8105369922,9900000202')
+  .split(',')
+  .map(lastTen)
+  .filter(Boolean);
+export const canApproveMortality = (user) =>
+  Boolean(user?.phone) && MORTALITY_APPROVERS.includes(lastTen(user.phone));
 
 export const signToken = (user) =>
   jwt.sign({ sub: user.id, name: user.name }, process.env.JWT_SECRET, {
