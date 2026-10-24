@@ -166,7 +166,9 @@ export default function Dashboard({
         <button type="button" className="quick" onClick={() => onAction('feed')}>
           <span className="quick-icon">
             <Icon>
-              <path d="M4 11h16a8 8 0 0 1-16 0ZM9 7V4M12 7V3M15 7V4" />
+              <path d="M12 22V9M12 9c-1.4-1-1.4-3.6 0-5 1.4 1.4 1.4 4 0 5Z" />
+              <path d="M12 13c-2.2 0-3.6-1.4-3.6-3.6 2.2 0 3.6 1.4 3.6 3.6Zm0 0c2.2 0 3.6-1.4 3.6-3.6-2.2 0-3.6 1.4-3.6 3.6Z" />
+              <path d="M12 17.5c-2.2 0-3.6-1.4-3.6-3.6 2.2 0 3.6 1.4 3.6 3.6Zm0 0c2.2 0 3.6-1.4 3.6-3.6-2.2 0-3.6 1.4-3.6 3.6Z" />
             </Icon>
           </span>
           Enter Feed
