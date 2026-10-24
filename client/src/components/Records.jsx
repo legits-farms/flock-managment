@@ -31,11 +31,11 @@ import ShiftDetail from './ShiftDetail.jsx';
 // View ids match the API path and the RecordDetail `kind`
 const VIEWS = [
   { id: 'mortalities', label: 'Mortality' },
-  { id: 'feeds', label: 'Feeding' },
-  { id: 'weights', label: 'Weight' },
-  { id: 'vaccinations', label: 'Vaccinations' },
-  { id: 'shifts', label: 'Shifts' },
   { id: 'sales', label: 'Sales' },
+  { id: 'shifts', label: 'Shifts' },
+  { id: 'vaccinations', label: 'Vaccinations' },
+  { id: 'weights', label: 'Weight' },
+  { id: 'feeds', label: 'Feeding' },
 ];
 
 // The EntryDetail `kind` of the views it shows
