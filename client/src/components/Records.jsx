@@ -283,7 +283,7 @@ export default function Records({ batches, onOpenBatch, onUpdated }) {
   }
 
   return (
-    <div className="manage">
+    <div className="manage wide">
       <div className="list-head">
         <h2>Records</h2>
         <button

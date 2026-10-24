@@ -3389,3 +3389,299 @@ button.photo-link {
   font-size: 1rem;
   font-weight: 700;
 }
+
+/* A card's name keeps its words whole: the tags beside it drop under it instead
+   when the card is too narrow for both */
+.batch .batch-head {
+  flex-wrap: wrap;
+}
+
+.batch-title {
+  flex: 1 1 9rem;
+}
+
+.batch-title strong {
+  overflow-wrap: break-word;
+}
+
+/* Tab icons: drawn strokes, sized by the bar rather than by the text */
+.tab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+}
+
+/* A coop with no birds: one line, its accent stepped back to the border colour */
+.batch.compact {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.batch.compact::before {
+  background: var(--line);
+}
+
+.batch.static {
+  cursor: default;
+}
+
+/* Rows of pills that scroll sideways: a soft shadow shows at whichever end has
+   more to see, and none once there is nothing left that way */
+.subtabs {
+  background:
+    linear-gradient(to right, #fff 40%, rgba(255, 255, 255, 0)) left / 36px 100% no-repeat local,
+    linear-gradient(to left, #fff 40%, rgba(255, 255, 255, 0)) right / 36px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgba(65, 64, 66, 0.2), transparent) left / 12px 100%
+      no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgba(65, 64, 66, 0.2), transparent) right / 12px
+      100% no-repeat scroll,
+    #fff;
+}
+
+/* Keyboard focus, wherever it lands */
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid rgba(238, 102, 32, 0.45);
+  outline-offset: 2px;
+}
+
+/* A mouse: what can be pressed answers the pointer */
+@media (hover: hover) and (pointer: fine) {
+  .card.batch:not(.static),
+  .card.record,
+  .quick,
+  .alert {
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+  }
+
+  button.card.batch:hover,
+  button.card.record:hover,
+  .quick:hover,
+  button.alert:hover {
+    border-color: #f3b98f;
+    box-shadow: 0 16px 34px -22px rgba(238, 102, 32, 0.55);
+    transform: translateY(-1px);
+  }
+
+  .tab:not(.active):hover,
+  .subtabs button:not(.active):hover {
+    background: rgba(238, 102, 32, 0.08);
+    color: var(--brown);
+  }
+
+  .primary:not(:disabled):hover {
+    filter: brightness(1.06);
+  }
+
+  .secondary:hover {
+    background: var(--orange-soft);
+  }
+
+  .link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .hero-sale:hover,
+  .hero-action:hover {
+    transform: translateY(-1px);
+  }
+}
+
+/* Tablet: the same single column, just roomier */
+@media (min-width: 640px) {
+  .app,
+  .tab-bar {
+    max-width: 760px;
+  }
+
+  .app-main {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .auth {
+    max-width: 460px;
+    margin: 0 auto;
+  }
+
+  .hero-value {
+    font-size: 3rem;
+  }
+
+  .quick-actions {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  /* A bottom sheet becomes a dialog in the middle of the screen */
+  .sheet-backdrop {
+    align-items: center;
+    padding: 24px;
+  }
+
+  .sheet {
+    max-width: 520px;
+    border-radius: 24px;
+    padding-bottom: 20px;
+  }
+}
+
+/* Desktop: the tabs move to a sidebar beside the page, and the page widens */
+@media (min-width: 1024px) {
+  :root {
+    --header-height: 63px;
+    /* Nothing is pinned to the foot of the screen: the tabs are in the sidebar */
+    --tab-bar-height: 0px;
+  }
+
+  /* The page's glow spreads over the whole window, not just the app's column */
+  body {
+    background: radial-gradient(120% 60% at 85% 0%, #fff7ee 0%, var(--cream) 45%, var(--cream-2) 100%)
+      fixed;
+  }
+
+  .app {
+    background: none;
+  }
+
+  .app-header {
+    background: rgba(253, 247, 238, 0.85);
+  }
+
+  /* Pills sit at their own width instead of stretching across the page */
+  .app-main .subtabs {
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .app-main .subtabs button {
+    flex: 0 0 auto;
+    padding: 0 18px;
+  }
+
+  .hero-stats {
+    max-width: 720px;
+  }
+
+  .app:has(> .tab-bar) {
+    display: grid;
+    grid-template-columns: 236px minmax(0, 1fr);
+    grid-template-areas:
+      'header header'
+      'nav main';
+    align-items: start;
+    max-width: 1320px;
+  }
+
+  .app:has(> .tab-bar) > .app-header {
+    grid-area: header;
+    padding-left: 24px;
+    padding-right: 32px;
+  }
+
+  .app:has(> .tab-bar) > .app-main {
+    grid-area: main;
+    padding: 28px 36px 56px;
+  }
+
+  .tab-bar {
+    grid-area: nav;
+    position: sticky;
+    top: var(--header-height);
+    left: auto;
+    transform: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: auto;
+    max-width: none;
+    height: calc(100dvh / var(--scale) - var(--header-height));
+    padding: 24px 14px;
+    background: none;
+    backdrop-filter: none;
+    border-top: none;
+    border-right: 1px solid var(--line);
+  }
+
+  .tab {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    height: 48px;
+    padding: 0 14px;
+    border-radius: 14px;
+    font-size: 0.92rem;
+  }
+
+  .tab-count {
+    position: static;
+    margin-left: auto;
+    font-size: 0.72rem;
+  }
+
+  /* Forms and detail pages keep a comfortable reading width; lists use it all */
+  .manage {
+    width: 100%;
+    max-width: 820px;
+    margin: 0 auto;
+  }
+
+  .manage.wide {
+    max-width: none;
+  }
+
+  .manage.wide .batch-list,
+  .manage.wide .record-list:not(:has(> li > .record-list)) {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    align-items: start;
+  }
+
+  /* Dashboard: the hero and actions across the top, the cards two by two under them */
+  .dashboard:not(.security) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    align-items: start;
+  }
+
+  .dashboard:not(.security) > .dashboard-part:not([hidden]) {
+    display: contents;
+  }
+
+  .dashboard:not(.security) > :not(.dashboard-part),
+  .dashboard-part > .hero,
+  .dashboard-part > .quick-actions,
+  .dashboard-part > .alert,
+  .dashboard-part > .hint {
+    grid-column: 1 / -1;
+  }
+
+  .dashboard .hero {
+    padding: 26px 28px 22px;
+  }
+
+  .dashboard .hero-stats {
+    max-width: 720px;
+  }
+
+  .quick-actions {
+    grid-template-columns: repeat(6, 1fr);
+  }
+
+  .quick {
+    flex-direction: column;
+    justify-content: center;
+    padding: 16px 10px 14px;
+    text-align: center;
+  }
+
+  .dashboard.security,
+  .app:not(:has(> .tab-bar)) .app-main {
+    max-width: 820px;
+    margin: 0 auto;
+  }
+}

@@ -25,7 +25,7 @@ export default function BatchList({ batches, loading, error, onRetry, onManage, 
   }
 
   return (
-    <div className="manage">
+    <div className="manage wide">
       <div className="list-head">
         <h2>
           Batches <span>{batches.length}</span>

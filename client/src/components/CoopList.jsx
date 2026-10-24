@@ -125,7 +125,7 @@ export default function CoopList({
   const canSplit = houseCoop && !wholeInUse && canAddPart(houseCoop);
 
   return (
-    <div className="manage">
+    <div className="manage wide">
       <div className="list-head">
         <h2>Farms &amp; Coops</h2>
         {houseCoop ? (
@@ -276,25 +276,32 @@ export default function CoopList({
                       </span>
                     </span>
 
-                    <span className="batch-figures">
-                      <span className="batch-live">
-                        <b>{formatNumber(live)}</b>
-                        live birds
-                      </span>
-                      <span className="batch-side">
-                        <span>
-                          <b>{formatNumber(entered)}</b> in coop
+                    {/* An empty coop is a single line: its figures would all be zero */}
+                    {live > 0 && (
+                      <>
+                        <span className="batch-figures">
+                          <span className="batch-live">
+                            <b>{formatNumber(live)}</b>
+                            live birds
+                          </span>
+                          <span className="batch-side">
+                            <span>
+                              <b>{formatNumber(entered)}</b> in coop
+                            </span>
+                            <span>
+                              <b>{formatNumber(mortality)}</b> mortality
+                            </span>
+                          </span>
                         </span>
-                        <span>
-                          <b>{formatNumber(mortality)}</b> mortality
-                        </span>
-                      </span>
-                    </span>
 
-                    <span className="bar">
-                      <span style={{ width: `${livability}%` }} />
-                    </span>
-                    <span className="batch-livability">{livability.toFixed(1)}% livability</span>
+                        <span className="bar">
+                          <span style={{ width: `${livability}%` }} />
+                        </span>
+                        <span className="batch-livability">
+                          {livability.toFixed(1)}% livability
+                        </span>
+                      </>
+                    )}
 
                     {broodingDue(name, entries).length > 0 && (
                       <span className="due-note">
@@ -307,12 +314,16 @@ export default function CoopList({
                 return (
                   <li key={group?.key ?? name}>
                     {group ? (
-                      <button type="button" className="card batch" onClick={() => onOpen(group.key)}>
+                      <button
+                        type="button"
+                        className={`card batch ${live > 0 ? '' : 'compact'}`}
+                        onClick={() => onOpen(group.key)}
+                      >
                         {card}
                       </button>
                     ) : (
                       // Nothing to open until a batch is allocated here
-                      <div className="card batch static">{card}</div>
+                      <div className="card batch static compact">{card}</div>
                     )}
                   </li>
                 );
