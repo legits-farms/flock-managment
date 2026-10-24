@@ -19,13 +19,77 @@ import ShiftForm from './components/ShiftForm.jsx';
 import Records from './components/Records.jsx';
 import Users from './components/Users.jsx';
 
+// Stroke icons for the tabs, drawn alike so they sit evenly in the bar
+const TabIcon = ({ children }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width="22"
+    height="22"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.9"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    {children}
+  </svg>
+);
+
 const TABS = [
-  { id: 'dashboard', label: 'Dashboard', icon: '▦' },
-  { id: 'batches', label: 'Batches', icon: '☰' },
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    icon: (
+      <TabIcon>
+        <rect x="3" y="3" width="7.5" height="9" rx="2" />
+        <rect x="13.5" y="3" width="7.5" height="5" rx="2" />
+        <rect x="13.5" y="11" width="7.5" height="10" rx="2" />
+        <rect x="3" y="15" width="7.5" height="6" rx="2" />
+      </TabIcon>
+    ),
+  },
+  {
+    id: 'batches',
+    label: 'Batches',
+    icon: (
+      <TabIcon>
+        <path d="M12 3 3 7.5l9 4.5 9-4.5L12 3Z" />
+        <path d="m3 12 9 4.5 9-4.5M3 16.5 12 21l9-4.5" />
+      </TabIcon>
+    ),
+  },
   // Farms and their coops share a tab
-  { id: 'coops', label: 'Farms', icon: '⌂' },
-  { id: 'records', label: 'Records', icon: '▤' },
-  { id: 'feed', label: 'Feed', icon: '≡' },
+  {
+    id: 'coops',
+    label: 'Farms',
+    icon: (
+      <TabIcon>
+        <path d="M3 10.5 12 4l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-9.5Z" />
+        <path d="M9.5 21v-6h5v6" />
+      </TabIcon>
+    ),
+  },
+  {
+    id: 'records',
+    label: 'Records',
+    icon: (
+      <TabIcon>
+        <path d="M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" />
+        <path d="M14 3v5h5M9.5 13h6M9.5 17h6" />
+      </TabIcon>
+    ),
+  },
+  {
+    id: 'feed',
+    label: 'Feed',
+    icon: (
+      <TabIcon>
+        <path d="M4 11h16a8 8 0 0 1-16 0Z" />
+        <path d="M9 7V4M12 7V3M15 7V4" />
+      </TabIcon>
+    ),
+  },
 ];
 
 export default function App() {
@@ -383,7 +447,7 @@ function Flock({ user, onLogout }) {
         {!entering && tab === 'feed' && <Feed onOpenBatch={openBatch} />}
       </main>
 
-      <nav className="tab-bar">
+      <nav className="tab-bar" aria-label="Main">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -392,10 +456,8 @@ function Flock({ user, onLogout }) {
             aria-current={tab === t.id ? 'page' : undefined}
             onClick={() => goToTab(t.id)}
           >
-            <span className="tab-icon" aria-hidden="true">
-              {t.icon}
-            </span>
-            {t.label}
+            <span className="tab-icon">{t.icon}</span>
+            <span className="tab-label">{t.label}</span>
             {t.id === 'batches' && batches.length > 0 && (
               <span className="tab-count">{batches.length}</span>
             )}

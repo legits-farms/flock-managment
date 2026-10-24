@@ -108,7 +108,7 @@ export default function Feed({ onOpenBatch }) {
   const cost = data ? data.purchases.reduce((sum, purchase) => sum + purchase.amount, 0) : 0;
 
   return (
-    <div className="manage">
+    <div className="manage wide">
       <div className="list-head">
         <h2>Feed</h2>
         {data && view === 'procurement' && (
