@@ -3691,3 +3691,47 @@ summary:focus-visible,
     margin: 0 auto;
   }
 }
+
+/* Notes tab of a batch or a coop */
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.note-form .primary.small {
+  align-self: flex-end;
+}
+
+.note-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.note {
+  padding: 14px 16px;
+}
+
+.note-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.note-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  color: var(--brown-soft);
+  font-size: 0.78rem;
+}
+
+.note-meta .link.danger {
+  color: var(--red);
+}

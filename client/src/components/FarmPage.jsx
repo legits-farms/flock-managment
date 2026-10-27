@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { addCoopName } from '../api.js';
 import {
   batchAge,
-  broodingAge,
+  coopAge,
   coopGroups,
   coopLive,
   coopsWithParts,
@@ -149,11 +149,11 @@ export default function FarmPage({
                     <div>
                       <strong>
                         {group.name}
-                        {broodingAge(group.name, group.entries) && (
+                        {coopAge(group.entries) && (
                           <>
                             {' '}
                             <span className="badge age">
-                              Age {broodingAge(group.name, group.entries)}
+                              Age {coopAge(group.entries)}
                             </span>
                           </>
                         )}

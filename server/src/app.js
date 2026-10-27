@@ -6,6 +6,7 @@ import { connectDb } from './db.js';
 import authRoutes from './routes/auth.js';
 import batchRoutes from './routes/batches.js';
 import feedPurchaseRoutes from './routes/feedPurchases.js';
+import noteRoutes from './routes/notes.js';
 import optionRoutes from './routes/options.js';
 import {
   feedRouter,
@@ -50,6 +51,7 @@ app.use('/api/weights', requireAuth, staffOnly, weightRouter);
 app.use('/api/shifts', requireAuth, staffOnly, shiftRoutes);
 app.use('/api/sales', requireAuth, staffOnly, saleRoutes);
 app.use('/api/feed-purchases', requireAuth, staffOnly, feedPurchaseRoutes);
+app.use('/api/notes', requireAuth, staffOnly, noteRoutes);
 // Admins only: the router itself turns everyone else away
 app.use('/api/users', requireAuth, userRoutes);
 

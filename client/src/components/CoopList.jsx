@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { addCoopName, addFarm } from '../api.js';
 import {
-  broodingAge,
+  coopAge,
   broodingDue,
   coopGroups,
   coopLive,
@@ -271,8 +271,8 @@ export default function CoopList({
                         </small>
                       </span>
                       <span className="badges">
-                        {broodingAge(name, entries) && (
-                          <span className="badge age">Age {broodingAge(name, entries)}</span>
+                        {coopAge(entries) && (
+                          <span className="badge age">Age {coopAge(entries)}</span>
                         )}
                         {group && (
                           <span className="alert-go" aria-hidden="true">

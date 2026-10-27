@@ -82,6 +82,7 @@ model Batch {
   weights      Weight[]
   shifts       Shift[]
   saleSets     SaleSet[]
+  notes        Note[]
 }
 
 // One batch's birds in one coop
@@ -396,4 +397,22 @@ model FeedPurchase {
   createdByName    String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+}
+
+// A note written on a batch's page or a coop's page: one of batchId, or farm with
+// coopName, is set. A coop's notes go by its name, so they stay with the coop
+// whichever batches pass through it.
+model Note {
+  id            String   @id @default(cuid())
+  batchId       String?
+  batch         Batch?   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  farm          String?
+  coopName      String?
+  text          String
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+
+  @@index([batchId])
+  @@index([farm, coopName])
 }
