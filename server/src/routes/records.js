@@ -281,7 +281,15 @@ export const weightRouter = recordRouter(
   async (body, by, user) => {
     const { batch, coop } = await findBatchAndCoop(body, user);
     const birds = parseBirds(body.birds, coop);
-    const totalWeightKg = parseKg(body.totalWeightKg, 'Total weight');
+    // The birds are weighed in their boxes: what they weigh by themselves is the
+    // total less the empty boxes. An older app sends the birds' weight alone.
+    const grossWeightKg = parseKg(body.grossWeightKg ?? body.totalWeightKg, 'Total weight');
+    const boxWeightKg = Number(body.boxWeightKg ?? 0);
+    if (!Number.isFinite(boxWeightKg) || boxWeightKg < 0) {
+      throw badRequest('Box weight cannot be less than 0');
+    }
+    const totalWeightKg = Number((grossWeightKg - boxWeightKg).toFixed(3));
+    if (totalWeightKg <= 0) throw badRequest('The total weight must be more than the box weight');
 
     const record = await prisma.weight.create({
       data: {
@@ -291,6 +299,7 @@ export const weightRouter = recordRouter(
         farm: farmOf(batch, coop),
         date: parseDate(body.date, 'Date is required'),
         birds,
+        boxWeightKg,
         totalWeightKg,
         avgWeightG: Math.round((totalWeightKg * 1000) / birds),
         remarks: text(body.remarks),

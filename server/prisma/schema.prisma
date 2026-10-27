@@ -228,8 +228,10 @@ model Weight {
   // Snapshot of the farm that coop is on
   farm          String   @default("")
   date          DateTime
-  // Birds weighed, and what they weighed together
+  // Birds weighed, the empty boxes they were weighed in, and what the birds
+  // weighed together without the boxes (0 box weight on older entries)
   birds         Int
+  boxWeightKg   Float    @default(0)
   totalWeightKg Float
   // Worked out from the two above, in grams per bird
   avgWeightG    Float

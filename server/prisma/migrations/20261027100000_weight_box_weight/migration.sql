@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Weight" ADD COLUMN     "boxWeightKg" DOUBLE PRECISION NOT NULL DEFAULT 0;
+

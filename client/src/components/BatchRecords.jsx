@@ -195,7 +195,7 @@ export default function BatchRecords({
                     {label(r)} · {formatDate(r.date)}, {formatTime(r.createdAt)}
                     {byName(r.createdBy) && ` · By ${byName(r.createdBy)}`}
                     <br />
-                    {formatNumber(r.birds)} birds weighed · {formatKg(r.totalWeightKg)} in total
+                    {formatNumber(r.birds)} birds weighed · {formatKg(r.totalWeightKg)} birds total weight
                     {r.remarks && (
                       <>
                         <br />
