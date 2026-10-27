@@ -15,11 +15,14 @@ export const DEFAULT_COOPS = {
 const keyOf = (name) => name.trim().toLowerCase();
 
 // A part of a coop is the coop's name followed by a letter or a name: "Coop 5C"
-// is part C of "Coop 5", "Coop 4 Sonali" its part Sonali. { coop, label }, or
-// null for any other name.
+// is part C of "Coop 5", "Coop 4 Sonali" its part Sonali. A brooding house ends
+// in a letter, so its parts are numbered: "Brooding A2" is part 2 of "Brooding A",
+// "Brooding A Sonali" its part Sonali. { coop, label }, or null for any other name.
 export function partOf(name) {
-  const match = /^(.*\d)\s*([a-z].*)$/i.exec(name.trim());
-  return match ? { coop: match[1], label: match[2] } : null;
+  const text = name.trim();
+  const match =
+    /^(brooding\s+[a-z])(?:(\d+)|\s+([a-z].*))$/i.exec(text) ?? /^(.*\d)\s*([a-z].*)$/i.exec(text);
+  return match ? { coop: match[1], label: match[2] ?? match[3] } : null;
 }
 
 // Coop 1 can be split into 8 parts, any other coop into 6

@@ -10,17 +10,18 @@ import {
   farmSummary,
   formatNumber,
   canAddPart,
-  partName,
   partOf,
+  placeType,
 } from '../flock.js';
 import LoadStatus from './LoadStatus.jsx';
 import NameSheet from './NameSheet.jsx';
+import PartSheet from './PartSheet.jsx';
 
 const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 // The house a coop is part of: "Coop 1A" and "Coop 1 Sonali" are both in
-// "Coop 1", and "Brooding A" is in "Brooding"
-const houseOf = (name) => partOf(name)?.coop ?? name.trim().replace(/\s+[a-z]$/i, '');
+// "Coop 1", and "Brooding A" and its part "Brooding A2" are in "Brooding"
+const houseOf = (name) => (partOf(name)?.coop ?? name).trim().replace(/\s+[a-z]$/i, '');
 
 // The farms and their coops on one screen: pick a farm, see what it holds, then
 // its coops, one card each: those holding birds first, then the empty ones with
@@ -117,28 +118,37 @@ export default function CoopList({
   const inUse = shown.filter((coop) => coop.live > 0);
   const empty = shown.filter((coop) => coop.live === 0);
 
-  // With one coop picked, what is added is a part of it ("Coop 5A", "Coop 5 Sonali"),
-  // unless birds are in the coop as a whole or it has all its parts
-  const houseCoop = house && withParts.find((coop) => sameName(coop.name, house));
-  const wholeInUse =
-    houseCoop && shown.some(({ name, live }) => sameName(name, houseCoop.name) && live > 0);
-  const canSplit = houseCoop && !wholeInUse && canAddPart(houseCoop);
+  // The coops a part can be added to ("Coop 5A", "Coop 5 Sonali"), in number order:
+  // brooding houses first, while each has parts to spare. Birds already in the
+  // coop as a whole stay there and can be shifted into its parts.
+  const splittable = withParts
+    // Parts are named after a coop's number or a brooding house's letter
+    .filter(
+      (coop) =>
+        (placeType(coop.name) === 'brooding' || /\d$/.test(coop.name.trim())) && canAddPart(coop)
+    )
+    .sort(
+      (a, b) =>
+        (placeType(a.name) === 'brooding' ? 0 : 1) - (placeType(b.name) === 'brooding' ? 0 : 1) ||
+        a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+    );
+  // With one coop picked, the part goes to that coop
+  const houseCoop = house && splittable.find((coop) => sameName(coop.name, house));
 
   return (
     <div className="manage wide">
       <div className="list-head">
         <h2>Farms &amp; Coops</h2>
-        {houseCoop ? (
-          canSplit && (
-            <button type="button" className="primary small" onClick={() => setAdding('part')}>
+        <span className="list-head-actions">
+          {splittable.length > 0 && (
+            <button type="button" className="secondary small" onClick={() => setAdding('part')}>
               ＋ Add Part
             </button>
-          )
-        ) : (
+          )}
           <button type="button" className="primary small" onClick={() => setAdding('coop')}>
             ＋ Add Coop
           </button>
-        )}
+        </span>
       </div>
 
       <div className="subtabs" role="tablist" aria-label="Farm">
@@ -216,15 +226,11 @@ export default function CoopList({
           onClose={() => setAdding(null)}
         />
       )}
-      {adding === 'part' && houseCoop && (
-        <NameSheet
-          title={`Add a Part to ${houseCoop.name}`}
-          label="Part Name, e.g. Sonali or A"
-          submitLabel="Add Part"
-          onSubmit={async (label) => {
-            if (!label.trim()) throw new Error('Enter a name for the part.');
-            onOptions(await addCoopName(farm, partName(houseCoop.name, label)));
-          }}
+      {adding === 'part' && (
+        <PartSheet
+          coops={splittable}
+          initialCoop={houseCoop?.name}
+          onSubmit={async (name) => onOptions(await addCoopName(farm, name))}
           onClose={() => setAdding(null)}
         />
       )}
