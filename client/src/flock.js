@@ -32,18 +32,18 @@ export function batchAge(batch, { weeks = false } = {}) {
   return `${text} (${Math.floor(days / 7)} wk${days % 7 ? ` ${days % 7} d` : ''})`;
 }
 
-// The age tag of a brooding house: the age of the birds in it now. null for any
-// other coop, for a brooding house with no live birds, and for one holding
-// batches of different ages (each batch shows its own age instead).
-// `entries` are its { batch, coop } pairs.
-export function broodingAge(coopName, entries) {
-  if (placeType(coopName) !== 'brooding') return null;
-  const ages = new Set(
-    entries.filter(({ coop }) => coopLive(coop) > 0).map(({ batch }) => batchAgeDays(batch)),
-  );
-  if (ages.size !== 1) return null;
-  const [age] = ages;
-  return `${formatNumber(age)} ${age === 1 ? 'day' : 'days'}`;
+// The age tag of a coop or brooding house: the age of the live birds in it now,
+// "21 days", or each age when it holds batches of different ages, "11 / 14 days".
+// null when it has no live birds. `entries` are its { batch, coop } pairs.
+export function coopAge(entries) {
+  const ages = [
+    ...new Set(
+      entries.filter(({ coop }) => coopLive(coop) > 0).map(({ batch }) => batchAgeDays(batch)),
+    ),
+  ].sort((a, b) => a - b);
+  if (ages.length === 0) return null;
+  const last = ages[ages.length - 1];
+  return `${ages.map(formatNumber).join(' / ')} ${ages.length === 1 && last === 1 ? 'day' : 'days'}`;
 }
 
 // The feeds given to broilers and to layers, each in the order the birds move through them

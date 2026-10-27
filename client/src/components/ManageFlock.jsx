@@ -31,6 +31,7 @@ import useVaccineSchedule from '../useVaccineSchedule.js';
 import BatchFeed from './BatchFeed.jsx';
 import BatchRecords from './BatchRecords.jsx';
 import Dropdown from './Dropdown.jsx';
+import Notes from './Notes.jsx';
 import OptionSelect from './OptionSelect.jsx';
 import SoldList from './SoldList.jsx';
 import VaccinationSchedule from './VaccinationSchedule.jsx';
@@ -48,6 +49,7 @@ const VIEWS = [
   { id: 'feed', label: 'Feed' },
   { id: 'sold', label: 'Sold' },
   { id: 'activity', label: 'Activity Logs' },
+  { id: 'notes', label: 'Notes' },
 ];
 
 export default function ManageFlock({
@@ -332,7 +334,9 @@ export default function ManageFlock({
         />
       )}
 
-      {view !== 'coops' && view !== 'feed' && view !== 'sold' && (
+      {view === 'notes' && <Notes page={{ batchId: batch._id }} />}
+
+      {view !== 'coops' && view !== 'feed' && view !== 'sold' && view !== 'notes' && (
         <BatchRecords view={view} batch={batch} records={records} error={recordsError} />
       )}
 

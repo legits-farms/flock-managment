@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   FEEDS_PER_DAY,
   batchAge,
-  broodingAge,
+  coopAge,
   broodingDue,
   coopLive,
   dueVaccineNames,
@@ -15,6 +15,7 @@ import useBatchRecords from '../useBatchRecords.js';
 import useVaccineSchedule from '../useVaccineSchedule.js';
 import BatchRecords from './BatchRecords.jsx';
 import EntryDetail from './EntryDetail.jsx';
+import Notes from './Notes.jsx';
 import RecordForm from './RecordForm.jsx';
 import SoldList from './SoldList.jsx';
 import VaccinationSchedule from './VaccinationSchedule.jsx';
@@ -26,6 +27,7 @@ const VIEWS = [
   { id: 'mortality', label: 'Mortality' },
   { id: 'sold', label: 'Sold' },
   { id: 'activity', label: 'Activity Logs' },
+  { id: 'notes', label: 'Notes' },
 ];
 
 const formatDate = (value) =>
@@ -118,8 +120,8 @@ export default function CoopPage({ group, onBack, onOpenBatch, onUpdated }) {
           <h3>{group.name}</h3>
           <span className="badges">
             {group.farm && <span className="badge">{group.farm}</span>}
-            {broodingAge(group.name, entries) && (
-              <span className="badge age">Age {broodingAge(group.name, entries)}</span>
+            {coopAge(entries) && (
+              <span className="badge age">Age {coopAge(entries)}</span>
             )}
           </span>
         </div>
@@ -225,7 +227,9 @@ export default function CoopPage({ group, onBack, onOpenBatch, onUpdated }) {
         <VaccinationSchedule entries={entries} vaccinations={records?.vaccinations} />
       )}
 
-      {view === 'sold' ? (
+      {view === 'notes' ? (
+        <Notes page={{ farm: group.farm, coop: group.name }} />
+      ) : view === 'sold' ? (
         <SoldList
           batchIds={entries.map(({ batch }) => batch._id)}
           includes={(set) => coopIds.has(set.coopId)}

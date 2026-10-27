@@ -159,3 +159,14 @@ export const getShifts = (batchId) => request(`/shifts${forBatch(batchId)}`);
 
 // A sale can hold birds from several batches; this lists every sale with some from this one
 export const getSales = (batchId) => request(`/sales${forBatch(batchId)}`);
+
+// Notes on one batch's page ({ batchId }) or one coop's page ({ farm, coop }), newest first
+export const getNotes = ({ batchId, farm, coop }) =>
+  request(
+    `/notes?${new URLSearchParams(batchId ? { batch: batchId } : { farm, coop })}`,
+  );
+
+export const addNote = (page, text) =>
+  request('/notes', { method: 'POST', body: JSON.stringify({ ...page, text }) });
+
+export const deleteNote = (id) => request(`/notes/${id}`, { method: 'DELETE' });
