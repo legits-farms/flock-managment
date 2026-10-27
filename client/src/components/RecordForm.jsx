@@ -31,11 +31,34 @@ const today = () => new Date().toLocaleDateString('en-CA');
 const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 // The coops of a batch that are on the given farm. A batch can be spread over
-// several farms, so the farm is chosen first and narrows the batches and coops.
+// several farms, so the farm is chosen first and narrows the coops and batches.
 const coopsOn = (batch, farm) =>
   farm === null ? [] : batch.coops.filter((coop) => sameName(coopFarm(batch, coop), farm));
 
-const batchesOn = (batches, farm) => batches.filter((batch) => coopsOn(batch, farm).length > 0);
+// The coop names on a farm, each once: one coop can hold birds of several batches.
+// Brooding houses come first, then the coops in number order: Coop 1, 2 ... 10.
+const coopNamesOn = (batches, farm) =>
+  [
+    ...new Map(
+      batches
+        .flatMap((batch) => coopsOn(batch, farm))
+        .map((coop) => [coop.name.trim().toLowerCase(), coop.name]),
+    ).values(),
+  ].sort(
+    (a, b) =>
+      (placeType(a) === 'brooding' ? 0 : 1) - (placeType(b) === 'brooding' ? 0 : 1) ||
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }),
+  );
+
+// The batch's own entry for the named coop on the farm, preferring one with live birds
+const coopOf = (batch, farm, name) => {
+  const named = coopsOn(batch, farm).filter((coop) => sameName(coop.name, name));
+  return named.find((coop) => coopLive(coop) > 0) ?? named[0];
+};
+
+// The batches with birds in the named coop on the farm
+const batchesIn = (batches, farm, name) =>
+  name === '' ? [] : batches.filter((batch) => coopOf(batch, farm, name));
 
 // With a single choice there is nothing to pick
 const only = (list) => (list.length === 1 ? list[0] : null);
@@ -99,12 +122,11 @@ export default function RecordForm({
   ];
 
   const onlyFarm = only(farms);
-  const onlyBatch = only(batchesOn(batches, onlyFarm));
+  const onlyCoop = only(coopNamesOn(batches, onlyFarm)) ?? '';
   const [farm, setFarm] = useState(onlyFarm);
-  const [batchId, setBatchId] = useState(onlyBatch?._id ?? '');
-  const [coopId, setCoopId] = useState(
-    (onlyBatch && only(coopsOn(onlyBatch, onlyFarm))?._id) ?? '',
-  );
+  // The farm is picked first, then the coop on it, then the batch in that coop
+  const [coopName, setCoopName] = useState(onlyCoop);
+  const [batchId, setBatchId] = useState(only(batchesIn(batches, onlyFarm, onlyCoop))?._id ?? '');
   // Mortality type picked by hand; until then it follows the chosen coop
   const [pickedType, setPickedType] = useState('');
   const [birds, setBirds] = useState('');
@@ -160,33 +182,28 @@ export default function RecordForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const farmBatches = batchesOn(batches, farm);
-  const batch = farmBatches.find((b) => b._id === batchId);
-  const batchCoops = batch ? coopsOn(batch, farm) : [];
-  const coop = batchCoops.find((c) => c._id === coopId);
+  const farmCoops = coopNamesOn(batches, farm);
+  const coopBatches = batchesIn(batches, farm, coopName);
+  const batch = coopBatches.find((b) => b._id === batchId);
+  const coop = batch && coopOf(batch, farm, coopName);
   const mortalityType = pickedType || (coop ? placeType(coop.name) : '');
   const average = averageGrams(totalWeightKg, birds);
 
-  function chooseBatch(id, onFarm = farm) {
-    const chosen = batches.find((b) => b._id === id);
-    setBatchId(id);
-    chooseCoop((chosen && only(coopsOn(chosen, onFarm))?._id) ?? '');
-  }
-
-  function chooseCoop(id) {
-    setCoopId(id);
+  function chooseCoop(name, onFarm = farm) {
+    setCoopName(name);
+    setBatchId(only(batchesIn(batches, onFarm, name))?._id ?? '');
     setPickedType('');
   }
 
   function chooseFarm(next) {
     setFarm(next);
-    chooseBatch(only(batchesOn(batches, next))?._id ?? '', next);
+    chooseCoop(only(coopNamesOn(batches, next)) ?? '', next);
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!batch) return setError('Please select a farm and a batch.');
-    if (!coop) return setError('Please select a coop.');
+    if (!coopName) return setError('Please select a farm and a coop.');
+    if (!batch || !coop) return setError('Please select a batch.');
     if (type === 'vaccination' && !given) return setError('Please select the vaccine.');
     if (type === 'feed' && !feedType) return setError('Please select the feed type.');
     if (config.birdsLabel && Number(birds) > coopLive(coop)) {
@@ -226,7 +243,7 @@ export default function RecordForm({
       }[type];
       const saved = await config.save({
         batchId,
-        coopId,
+        coopId: coop._id,
         ...details,
         ...evidencePayload(evidence),
       });
@@ -281,27 +298,27 @@ export default function RecordForm({
         </div>
 
         <div className="field">
-          <label htmlFor="record-batch">Batch</label>
+          <label htmlFor="record-coop">Coop</label>
           <Dropdown
-            id="record-batch"
-            value={batchId}
-            options={farmBatches.map((b) => ({ value: b._id, label: b.batchName }))}
-            onChange={chooseBatch}
-            placeholder={farm === null ? 'Select farm first' : 'Select batch'}
+            id="record-coop"
+            value={coopName}
+            options={farmCoops.map((name) => ({ value: name, label: name }))}
+            onChange={chooseCoop}
+            placeholder={farm === null ? 'Select farm first' : 'Select coop'}
           />
         </div>
 
         <div className="field">
-          <label htmlFor="record-coop">Coop</label>
+          <label htmlFor="record-batch">Batch</label>
           <Dropdown
-            id="record-coop"
-            value={coopId}
-            options={batchCoops.map((c) => ({
-              value: c._id,
-              label: `${c.name} (${formatNumber(coopLive(c))} live)`,
+            id="record-batch"
+            value={batchId}
+            options={coopBatches.map((b) => ({
+              value: b._id,
+              label: `${b.batchName} (${formatNumber(coopLive(coopOf(b, farm, coopName)))} live)`,
             }))}
-            onChange={chooseCoop}
-            placeholder={batch ? 'Select coop' : 'Select batch first'}
+            onChange={setBatchId}
+            placeholder={coopName ? 'Select batch' : 'Select coop first'}
           />
         </div>
 
