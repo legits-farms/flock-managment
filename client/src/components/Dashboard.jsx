@@ -10,6 +10,7 @@ import {
   unallocatedBirds,
 } from '../flock.js';
 import hen from '../assets/hen.png';
+import LastWeights from './LastWeights.jsx';
 import LoadStatus from './LoadStatus.jsx';
 import MortalityApprovals from './MortalityApprovals.jsx';
 import MortalityChart from './MortalityChart.jsx';
@@ -217,57 +218,74 @@ export default function Dashboard({
 
       <VaccinesDue batches={batches} onAdd={() => onAction('vaccination')} />
 
-      <MortalityChart />
-
-      {batches.length > 0 && (
-        <>
-          <section className="card">
-            <h2 className="eyebrow">Live Birds by Breed</h2>
-            <ul className="breed-list">
-              {summary.breeds.map((b) => (
-                <li key={b.breed}>
-                  <div className="breed-row">
-                    <span className="breed-name">{b.breed}</span>
-                    <span className="breed-count">
-                      {formatNumber(b.live)}
-                      <small>
-                        {b.batches} {b.batches === 1 ? 'batch' : 'batches'}
-                      </small>
-                    </span>
+      {/* On a wide screen the cards stack in two columns, each at its own height,
+          so a short card leaves no gap; on a phone `order` keeps them in one list:
+          chart, weights, breeds, recent batches, recent records */}
+      <div className="dash-cards">
+        <div className="dash-col">
+          <div className="dash-slot" style={{ order: 1 }}>
+            <MortalityChart />
+          </div>
+          {batches.length > 0 && (
+            <>
+              <div className="dash-slot" style={{ order: 3 }}>
+                <section className="card">
+                  <h2 className="eyebrow">Live Birds by Breed</h2>
+                  <ul className="breed-list">
+                    {summary.breeds.map((b) => (
+                      <li key={b.breed}>
+                        <div className="breed-row">
+                          <span className="breed-name">{b.breed}</span>
+                          <span className="breed-count">
+                            {formatNumber(b.live)}
+                            <small>
+                              {b.batches} {b.batches === 1 ? 'batch' : 'batches'}
+                            </small>
+                          </span>
+                        </div>
+                        <div className="bar">
+                          <span style={{ width: `${(b.live / maxLive) * 100}%` }} />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              </div>
+              <div className="dash-slot" style={{ order: 4 }}>
+                <section className="card">
+                  <div className="section-head">
+                    <h2 className="eyebrow">Recent Batches</h2>
+                    <button type="button" className="link" onClick={() => onNavigate('batches')}>
+                      View all
+                    </button>
                   </div>
-                  <div className="bar">
-                    <span style={{ width: `${(b.live / maxLive) * 100}%` }} />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className="card">
-            <div className="section-head">
-              <h2 className="eyebrow">Recent Batches</h2>
-              <button type="button" className="link" onClick={() => onNavigate('batches')}>
-                View all
-              </button>
-            </div>
-            <ul className="recent-list">
-              {recent.map((batch) => (
-                <li key={batch._id}>
-                  <div>
-                    <strong>{batch.batchName}</strong>
-                    <small>
-                      {batch.breed} · Age {batchAge(batch)} · {formatDate(batch.startDate)}
-                    </small>
-                  </div>
-                  <span>{formatNumber(liveBirds(batch))}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </>
-      )}
-
-      <RecentRecords />
+                  <ul className="recent-list">
+                    {recent.map((batch) => (
+                      <li key={batch._id}>
+                        <div>
+                          <strong>{batch.batchName}</strong>
+                          <small>
+                            {batch.breed} · Age {batchAge(batch)} · {formatDate(batch.startDate)}
+                          </small>
+                        </div>
+                        <span>{formatNumber(liveBirds(batch))}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="dash-col">
+          <div className="dash-slot" style={{ order: 2 }}>
+            <LastWeights batches={batches} />
+          </div>
+          <div className="dash-slot" style={{ order: 5 }}>
+            <RecentRecords />
+          </div>
+        </div>
+      </div>
       </div>
     </div>
   );

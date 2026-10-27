@@ -537,6 +537,17 @@ textarea:focus {
   display: none;
 }
 
+/* The dashboard cards: one list on a phone (see the wide-screen rules for two columns) */
+.dash-cards,
+.dash-col {
+  display: contents;
+}
+
+/* A card that has nothing to show leaves no gap */
+.dash-slot:empty {
+  display: none;
+}
+
 /* The entry itself is pressed to open everything saved with it */
 .approval-head > button {
   display: flex;
@@ -3662,8 +3673,23 @@ summary:focus-visible,
   .dashboard-part > .hero,
   .dashboard-part > .quick-actions,
   .dashboard-part > .alert,
-  .dashboard-part > .hint {
+  .dashboard-part > .hint,
+  .dashboard-part > .dash-cards {
     grid-column: 1 / -1;
+  }
+
+  /* Two columns of cards, each stacked at its own height */
+  .dashboard:not(.security) .dash-cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    align-items: start;
+  }
+
+  .dashboard:not(.security) .dash-col {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
   }
 
   .dashboard .hero {
@@ -3734,4 +3760,19 @@ summary:focus-visible,
 
 .note-meta .link.danger {
   color: var(--red);
+}
+
+/* Dashboard: each batch's last avg weight, on the right of its row */
+.weight-last {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.recent-list .weight-last strong {
+  color: var(--orange);
+  font-weight: 700;
+}
+
+.weight-none {
+  flex-shrink: 0;
 }
