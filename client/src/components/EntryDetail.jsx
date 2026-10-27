@@ -86,8 +86,21 @@ export default function EntryDetail({ kind, record, backLabel, onBack, onOpenBat
                 <dt>Birds Weighed</dt>
                 <dd>{formatNumber(record.birds)}</dd>
               </div>
+              {/* Entries from before the box was weighed have no box weight */}
+              {record.boxWeightKg > 0 && (
+                <>
+                  <div>
+                    <dt>Box Weight</dt>
+                    <dd>{formatKg(record.boxWeightKg)}</dd>
+                  </div>
+                  <div>
+                    <dt>Total Weight</dt>
+                    <dd>{formatKg(record.totalWeightKg + record.boxWeightKg)}</dd>
+                  </div>
+                </>
+              )}
               <div>
-                <dt>Total Weight</dt>
+                <dt>Birds Total Weight</dt>
                 <dd>{formatKg(record.totalWeightKg)}</dd>
               </div>
               <div>

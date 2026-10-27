@@ -15,6 +15,7 @@ import {
   VACCINATION_SCHEDULE,
   coopFarm,
   coopLive,
+  formatKg,
   formatNumber,
   formatWeight,
   placeType,
@@ -101,6 +102,13 @@ function averageGrams(totalKg, birds) {
   return Math.round((Number(totalKg) * 1000) / Number(birds));
 }
 
+// What the birds weigh by themselves: the total on the scale less the boxes,
+// in kg, or null until the total is filled in
+function birdsKg(totalKg, boxKg) {
+  if (!(Number(totalKg) > 0)) return null;
+  return Number((Number(totalKg) - Number(boxKg || 0)).toFixed(3));
+}
+
 // Form for a mortality, vaccination, feed or weight record against one coop.
 // Opened from the dashboard, or from a coop page with only that coop's batches
 // to choose from.
@@ -177,6 +185,8 @@ export default function RecordForm({
   // Feed quantity as typed, in the unit picked next to it
   const [quantity, setQuantity] = useState('');
   const [quantityUnit, setQuantityUnit] = useState('kg');
+  // The boxes alone, then the birds in their boxes, as read off the scale
+  const [boxWeightKg, setBoxWeightKg] = useState('');
   const [totalWeightKg, setTotalWeightKg] = useState('');
   const [evidence, setEvidence] = useState([]);
   const [submitting, setSubmitting] = useState(false);
@@ -187,7 +197,8 @@ export default function RecordForm({
   const batch = coopBatches.find((b) => b._id === batchId);
   const coop = batch && coopOf(batch, farm, coopName);
   const mortalityType = pickedType || (coop ? placeType(coop.name) : '');
-  const average = averageGrams(totalWeightKg, birds);
+  const netKg = birdsKg(totalWeightKg, boxWeightKg);
+  const average = averageGrams(netKg, birds);
 
   function chooseCoop(name, onFarm = farm) {
     setCoopName(name);
@@ -208,6 +219,9 @@ export default function RecordForm({
     if (type === 'feed' && !feedType) return setError('Please select the feed type.');
     if (config.birdsLabel && Number(birds) > coopLive(coop)) {
       return setError(`Only ${formatNumber(coopLive(coop))} live birds are in ${coop.name}.`);
+    }
+    if (type === 'weight' && !(netKg > 0)) {
+      return setError('The total weight must be more than the box weight.');
     }
     if (config.photo && evidence.length === 0) return setError('Please take a live photo.');
 
@@ -239,7 +253,13 @@ export default function RecordForm({
           quantityKg: quantityUnit === 'g' ? Number(quantity) / 1000 : Number(quantity),
           remarks,
         },
-        weight: { birds: Number(birds), date, totalWeightKg: Number(totalWeightKg), remarks },
+        weight: {
+          birds: Number(birds),
+          date,
+          boxWeightKg: Number(boxWeightKg || 0),
+          grossWeightKg: Number(totalWeightKg),
+          remarks,
+        },
       }[type];
       const saved = await config.save({
         batchId,
@@ -448,6 +468,20 @@ export default function RecordForm({
         {type === 'weight' && (
           <>
             <label className="field">
+              <span>Box Weight (kg)</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="any"
+                value={boxWeightKg}
+                onChange={(e) => setBoxWeightKg(e.target.value)}
+                placeholder="Empty boxes, 0 if none"
+                required
+              />
+            </label>
+
+            <label className="field">
               <span>Total Weight (kg)</span>
               <input
                 type="number"
@@ -456,8 +490,18 @@ export default function RecordForm({
                 step="any"
                 value={totalWeightKg}
                 onChange={(e) => setTotalWeightKg(e.target.value)}
-                placeholder="0"
+                placeholder="Birds with the boxes"
                 required
+              />
+            </label>
+
+            <label className="field">
+              <span>Birds Total Weight</span>
+              <input
+                type="text"
+                value={netKg === null ? '' : formatKg(netKg)}
+                placeholder="Total weight less the box weight"
+                readOnly
               />
             </label>
 
@@ -466,7 +510,7 @@ export default function RecordForm({
               <input
                 type="text"
                 value={average === null ? '' : formatWeight(average)}
-                placeholder="Worked out from the two above"
+                placeholder="Birds total weight / no. of birds"
                 readOnly
               />
             </label>
