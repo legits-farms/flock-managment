@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { createShift } from '../api.js';
 import {
+  canSplit,
   coopGroups,
   coopLive,
   coopOccupant,
@@ -8,6 +9,8 @@ import {
   coopsOnFarm,
   coopsWithParts,
   formatNumber,
+  nextPartLabel,
+  partName,
 } from '../flock.js';
 import Dropdown from './Dropdown.jsx';
 import PhotoCapture, { evidencePayload } from './PhotoCapture.jsx';
@@ -46,6 +49,8 @@ export default function ShiftForm({
   const [batchId, setBatchId] = useState(preset ? from.batchId : '');
   const [toFarm, setToFarm] = useState('');
   const [toCoop, setToCoop] = useState('');
+  // For a coop another batch is in: 'batch' to join it there, 'part' for a new part
+  const [into, setInto] = useState('');
   const [birds, setBirds] = useState('');
   // Birds that died on the way, and the photo that goes with them
   const [mortality, setMortality] = useState('');
@@ -66,15 +71,18 @@ export default function ShiftForm({
   const lost = Number(mortality) || 0;
 
   // Every coop of the destination farm the batch can go to, except the one the
-  // birds are leaving and any that another batch is in. A coop split into parts
-  // is offered part by part.
-  const toCoops = coopsWithParts(coopsForBatch(coopsOnFarm(coopsByFarm, toFarm), entry?.batch))
+  // birds are leaving. A coop split into parts is offered part by part.
+  const houses = coopsWithParts(coopsForBatch(coopsOnFarm(coopsByFarm, toFarm), entry?.batch));
+  const toCoops = houses
     .flatMap((coop) => (coop.parts.length > 0 ? coop.parts : [coop.name]))
-    .filter(
-      (name) =>
-        !(group && sameName(name, group.name) && sameName(toFarm, group.farm)) &&
-        !(entry && coopOccupant(batches, toFarm, name, entry.batch)),
-    );
+    .filter((name) => !(group && sameName(name, group.name) && sameName(toFarm, group.farm)));
+  // The batch already in the chosen coop, which the birds can join or make room beside
+  const occupant = entry && toCoop ? coopOccupant(batches, toFarm, toCoop, entry.batch) : undefined;
+  const house = houses.find(
+    (coop) => sameName(coop.name, toCoop) || coop.parts.some((part) => sameName(part, toCoop)),
+  );
+  const newPart = house && canSplit(house) ? partName(house.name, nextPartLabel(house)) : '';
+  const landing = occupant && into === 'part' ? newPart : toCoop;
 
   function chooseFromFarm(farm) {
     setFromFarm(farm);
@@ -89,7 +97,12 @@ export default function ShiftForm({
 
   function chooseToFarm(farm) {
     setToFarm(farm);
-    setToCoop('');
+    chooseToCoop('');
+  }
+
+  function chooseToCoop(name) {
+    setToCoop(name);
+    setInto('');
   }
 
   async function handleSubmit(e) {
@@ -97,6 +110,9 @@ export default function ShiftForm({
     if (!group) return setError('Please select the farm and coop to shift from.');
     if (!entry) return setError('Please select the batch to shift.');
     if (!toFarm || !toCoops.includes(toCoop)) return setError('Please select the farm and coop to shift to.');
+    if (occupant && !into) {
+      return setError(`${toCoop} holds ${occupant.batchName}. Choose where the birds go in it.`);
+    }
     if (Number(birds) > available) {
       return setError(`Only ${formatNumber(available)} live birds are in ${group.name}.`);
     }
@@ -113,13 +129,14 @@ export default function ShiftForm({
         fromCoopId: entry.coop._id,
         toFarm,
         toCoop,
+        ...(occupant && { into }),
         birds: Number(birds),
         mortality: lost,
         reason,
         date,
         ...(lost > 0 ? evidencePayload(evidence) : {}),
       });
-      onSaved(saved.batch);
+      onSaved(saved);
     } catch (err) {
       setError(err.message);
       setSubmitting(false);
@@ -211,11 +228,53 @@ export default function ShiftForm({
             <Dropdown
               id="shift-to-coop"
               value={toCoops.includes(toCoop) ? toCoop : ''}
-              options={toCoops.map((name) => ({ value: name, label: name }))}
-              onChange={setToCoop}
+              options={toCoops.map((name) => {
+                const other = entry && coopOccupant(batches, toFarm, name, entry.batch);
+                return { value: name, label: name, note: other ? other.batchName : undefined };
+              })}
+              onChange={chooseToCoop}
               placeholder={toFarm ? 'Select coop' : 'Select farm first'}
             />
           </div>
+
+          {/* A coop holds one batch, so the birds either join it or get a part of their own */}
+          {occupant && (
+            <div className="field">
+              <span>
+                {toCoop} already has {occupant.batchName} · {occupant.breed}
+              </span>
+              <div className="choice stack" role="group" aria-label={`Where the birds go in ${toCoop}`}>
+                <button
+                  type="button"
+                  aria-pressed={into === 'batch'}
+                  className={into === 'batch' ? 'active' : ''}
+                  onClick={() => setInto('batch')}
+                >
+                  Add to {toCoop}, as {occupant.batchName}
+                </button>
+                {newPart && (
+                  <button
+                    type="button"
+                    aria-pressed={into === 'part'}
+                    className={into === 'part' ? 'active' : ''}
+                    onClick={() => setInto('part')}
+                  >
+                    Make a new part, {newPart}
+                  </button>
+                )}
+              </div>
+              {into === 'batch' && (
+                <p className="hint">
+                  The birds join {occupant.batchName} and are counted with it from now on.
+                </p>
+              )}
+              {into === 'part' && (
+                <p className="hint">
+                  {newPart} is added to {house.name} and the birds stay in {entry.batch.batchName}.
+                </p>
+              )}
+            </div>
+          )}
         </fieldset>
 
         <label className="field">
@@ -249,7 +308,7 @@ export default function ShiftForm({
 
         {lost > 0 && lost < Number(birds) && (
           <p className="hint">
-            {formatNumber(Number(birds) - lost)} birds will reach {toCoop || 'the coop'}
+            {formatNumber(Number(birds) - lost)} birds will reach {landing || 'the coop'}
           </p>
         )}
 

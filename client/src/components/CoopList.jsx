@@ -9,7 +9,7 @@ import {
   coopsWithParts,
   farmSummary,
   formatNumber,
-  canAddPart,
+  canSplit,
   partOf,
   placeType,
 } from '../flock.js';
@@ -123,10 +123,7 @@ export default function CoopList({
   // coop as a whole stay there and can be shifted into its parts.
   const splittable = withParts
     // Parts are named after a coop's number or a brooding house's letter
-    .filter(
-      (coop) =>
-        (placeType(coop.name) === 'brooding' || /\d$/.test(coop.name.trim())) && canAddPart(coop)
-    )
+    .filter(canSplit)
     .sort(
       (a, b) =>
         (placeType(a.name) === 'brooding' ? 0 : 1) - (placeType(b.name) === 'brooding' ? 0 : 1) ||

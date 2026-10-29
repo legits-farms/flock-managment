@@ -28,6 +28,27 @@ export function partOf(name) {
 // Coop 1 can be split into 8 parts, any other coop into 6
 export const maxParts = (coop) => (keyOf(coop) === 'coop 1' ? 8 : 6);
 
+// The name of the next part of a coop on the farm, or of the coop a part
+// belongs to: "Coop 3B" when "Coop 3A" exists, "Brooding A2" when "Brooding A1"
+// does. Refuses a coop that cannot take another part.
+export async function nextPartName(name, farm) {
+  const { coops } = await listOptions();
+  const listed = Object.entries(coops).find(([other]) => keyOf(other) === keyOf(farm))?.[1] ?? [];
+  const parent = partOf(name);
+  const coop = (parent && listed.find((other) => keyOf(other) === keyOf(parent.coop))) || name;
+  // Only a brooding house or a numbered coop is split into parts
+  const brooding = /^brooding\s+[a-z]$/i.test(coop.trim());
+  if (!brooding && !/\d$/.test(coop.trim())) throw badRequest(`${coop} cannot be split into parts`);
+  const taken = listed
+    .filter((other) => keyOf(partOf(other)?.coop ?? '') === keyOf(coop))
+    .map((other) => partOf(other).label.toUpperCase());
+  if (taken.length >= maxParts(coop)) {
+    throw badRequest(`${coop} can have only ${maxParts(coop)} parts`);
+  }
+  const label = [...(brooding ? '12345678' : 'ABCDEFGH')].find((one) => !taken.includes(one));
+  return `${coop}${label}`;
+}
+
 // A farm's coop names in the order they were added, except that a coop's parts
 // come right after it, however much later they were added
 function partsAfterCoop(names) {
