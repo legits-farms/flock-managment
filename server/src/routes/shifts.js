@@ -4,9 +4,9 @@ import { actor } from '../auth.js';
 import { coopLive, findBatch } from '../batches.js';
 import prisma from '../db.js';
 import { badRequest, parseEvidence } from '../evidence.js';
-import { checkCoopFree } from '../occupancy.js';
-import { checkWholeCoop, listedCoop, listedFarm } from '../options.js';
-import { checkCoopOnFarm, checkFarm, shiftScope } from '../scope.js';
+import { checkCoopFree, coopOccupant } from '../occupancy.js';
+import { addCoop, checkWholeCoop, listedCoop, listedFarm, nextPartName } from '../options.js';
+import { checkCoopOnFarm, checkFarm, optionsFor, shiftScope } from '../scope.js';
 import { addedBy, batchJsonFor, createdBy, recordJson } from '../serialize.js';
 import { parseDate, parseId, requiredText } from '../validate.js';
 
@@ -33,10 +33,17 @@ router.get('/', async (req, res, next) => {
 
 // Moves live birds of one batch from one of its coops to another coop. Any that
 // died on the way (`mortality`) need the same photo evidence as a mortality record.
-// Responds with { id, batch } carrying the updated batch.
+// A coop another batch is in takes the birds only when `into` says how:
+//   'batch' – they join that batch in the same coop
+//   'part'  – a new part of the coop is added and they go there
+// Responds with { id, batch } carrying the updated batch, plus `joined` (the
+// batch the birds joined) or `options` (the lists with the new part).
 router.post('/', async (req, res, next) => {
   try {
-    const { batchId, fromCoopId, toFarm, toCoop } = req.body;
+    const { batchId, fromCoopId, toFarm, into } = req.body;
+    if (into !== undefined && into !== 'batch' && into !== 'part') {
+      throw badRequest('Choose whether the birds join the batch in the coop or go to a new part');
+    }
 
     const batch = await findBatch(batchId);
     if (!batch) throw badRequest('Select the batch to shift');
@@ -48,11 +55,18 @@ router.post('/', async (req, res, next) => {
     if (!farm) throw badRequest('Select the farm to shift to');
     // A manager moves birds about their own farm; sending them to another is for staff
     checkFarm(req.user, farm);
-    const coopName = await listedCoop(toCoop, farm);
-    if (!coopName) throw badRequest('Select the coop to shift to');
-    checkBroodingAge(batch, coopName);
-    await checkCoopFree(batch, farm, coopName);
-    await checkWholeCoop(coopName, farm);
+    const chosen = await listedCoop(req.body.toCoop, farm);
+    if (!chosen) throw badRequest('Select the coop to shift to');
+    checkBroodingAge(batch, chosen);
+    await checkWholeCoop(chosen, farm);
+    // The batch the birds join, when they go into its coop
+    const occupant = into === 'batch' ? await coopOccupant(batch, farm, chosen) : null;
+    if (into === 'batch' && !occupant) {
+      throw badRequest(`No other batch is in ${chosen}. Shift the birds there as usual`);
+    }
+    if (!into) await checkCoopFree(batch, farm, chosen);
+    // The new part is only named here; it is added once everything else checks out
+    const coopName = into === 'part' ? await nextPartName(chosen, farm) : chosen;
 
     const birds = Number(req.body.birds);
     if (!Number.isInteger(birds) || birds < 1) {
@@ -80,9 +94,11 @@ router.post('/', async (req, res, next) => {
     const date = parseDate(req.body.date, 'Shift date is required');
     const photos = mortality > 0 ? parseEvidence(req.body, req.user) : null;
     const who = actor(req);
-    const existing = batch.coops.find(
-      (coop) => same(coop.name, coopName) && same(farmOf(coop), farm)
-    );
+    const existing = occupant
+      ? occupant.coop
+      : batch.coops.find((coop) => same(coop.name, coopName) && same(farmOf(coop), farm));
+    const arrived = birds - mortality;
+    const options = into === 'part' ? await addCoop(farm, coopName, who) : null;
 
     // The shift, its mortality and the two coops' counts are saved together or not at all
     const shift = await prisma.$transaction(async (tx) => {
@@ -140,14 +156,31 @@ router.post('/', async (req, res, next) => {
       });
       await tx.coop.update({
         where: { id: to.id },
-        data: { birds: { increment: birds - mortality } },
+        data: { birds: { increment: arrived } },
       });
+
+      // Birds that joined another batch are counted with that batch from now on,
+      // so each batch's coops still add up to the birds it has
+      if (occupant) {
+        await tx.batch.update({
+          where: { id: batch.id },
+          data: { numberOfBirds: { decrement: arrived } },
+        });
+        await tx.batch.update({
+          where: { id: occupant.batch.id },
+          data: { numberOfBirds: { increment: arrived } },
+        });
+      }
       return made;
     });
 
-    res
-      .status(201)
-      .json({ id: shift.id, batch: batchJsonFor(req.user)(await findBatch(batch.id)) });
+    const json = batchJsonFor(req.user);
+    res.status(201).json({
+      id: shift.id,
+      batch: json(await findBatch(batch.id)),
+      ...(occupant && { joined: json(await findBatch(occupant.batch.id)) }),
+      ...(options && { options: optionsFor(req.user, options) }),
+    });
   } catch (err) {
     next(err);
   }

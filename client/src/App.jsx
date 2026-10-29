@@ -323,8 +323,11 @@ function Flock({ user, onLogout }) {
               batches={batches}
               farms={options.farms}
               coopsByFarm={options.coops}
-              onSaved={(batch) => {
+              onSaved={({ batch, joined, options: lists }) => {
                 handleUpdated(batch);
+                // The batch the birds joined, or the coop lists with the new part
+                if (joined) handleUpdated(joined);
+                if (lists) setOptions(lists);
                 setAction(null);
                 setShiftFrom(null);
               }}

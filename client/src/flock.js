@@ -550,3 +550,16 @@ export function coopsWithParts(names) {
 
 // Whether a coop ({ name, parts }) can be split into one more part
 export const canAddPart = (coop) => coop.parts.length < maxParts(coop.name);
+
+// The first label not yet taken by one of a coop's ({ name, parts }) parts: "B"
+// when "Coop 1A" exists, and a number for a brooding house: "2" when "Brooding A1" exists
+export function nextPartLabel(coop) {
+  const taken = coop.parts.map((name) => partOf(name).label.toUpperCase());
+  const labels = /[a-z]$/i.test(coop.name.trim()) ? [...'12345678'] : [...'ABCDEFGH'];
+  return labels.find((label) => !taken.includes(label)) ?? '';
+}
+
+// Whether a coop ({ name, parts }) is one that is split into parts, a brooding
+// house or a numbered coop, and has room for one more
+export const canSplit = (coop) =>
+  (placeType(coop.name) === 'brooding' || /\d$/.test(coop.name.trim())) && canAddPart(coop);

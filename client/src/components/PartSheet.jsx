@@ -1,14 +1,6 @@
 import { useState } from 'react';
-import { partName, partOf } from '../flock.js';
+import { nextPartLabel as nextLetter, partName } from '../flock.js';
 import Dropdown from './Dropdown.jsx';
-
-// The first label not yet taken by one of the coop's parts: "B" when "Coop 1A"
-// exists, and a number for a brooding house: "2" when "Brooding A1" exists
-function nextLetter(coop) {
-  const taken = coop.parts.map((name) => partOf(name).label.toUpperCase());
-  const labels = /[a-z]$/i.test(coop.name.trim()) ? [...'12345678'] : [...'ABCDEFGH'];
-  return labels.find((label) => !taken.includes(label)) ?? '';
-}
 
 // Bottom-sheet popup adding a part to one of `coops` ([{ name, parts }]), the
 // next letter filled in. `onSubmit(name)` saves the part's full name, "Coop 1B".
