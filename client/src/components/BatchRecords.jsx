@@ -119,7 +119,8 @@ export default function BatchRecords({
                 <div>
                   <strong>{r.vaccine}</strong>
                   <small>
-                    {label(r)} · {formatDate(r.date)} · {formatNumber(r.birds)} birds
+                    {label(r)} · {formatDate(r.date)} ·{' '}
+                    {r.notRequired ? 'Not required' : `${formatNumber(r.birds)} birds`}
                     {r.remarks && (
                       <>
                         <br />

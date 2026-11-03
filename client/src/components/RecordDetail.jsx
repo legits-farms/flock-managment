@@ -79,7 +79,11 @@ export default function RecordDetail({ kind, record, onBack, onOpenBatch }) {
               </div>
               <div>
                 <dt>Birds</dt>
-                <dd>{formatNumber(record.birds)} administered</dd>
+                <dd>
+                  {record.notRequired
+                    ? 'Not required'
+                    : `${formatNumber(record.birds)} administered`}
+                </dd>
               </div>
               {record.remarks && (
                 <div>

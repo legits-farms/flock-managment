@@ -340,7 +340,8 @@ export function scheduleDay(when) {
 // going by its `vaccinations` records. One row per entry that has an age, oldest
 // first: { vaccine, when, day, status, late, pending }.
 //   status  – 'done', 'due' (the birds are old enough and some have not had it),
-//             'upcoming', or 'optional' for an "if needed" entry not given
+//             'upcoming', 'optional' for an "if needed" entry not given, or
+//             'skipped' when a record says the farm found it not required
 //   late    – days the birds are past the entry's age (negative while upcoming)
 //   pending – [{ coop, birds }] still to be given it, out of `coops`
 // Vaccines due before the batch arrived are left out: the birds came with those.
@@ -381,11 +382,13 @@ export function vaccinationStatus(batch, schedule, vaccinations, coops = batch.c
       const status =
         pending.length === 0
           ? 'done'
-          : /if needed/i.test(entry.vaccine)
-            ? 'optional'
-            : late >= 0
-              ? 'due'
-              : 'upcoming';
+          : given.some((record) => record.notRequired)
+            ? 'skipped'
+            : /if needed/i.test(entry.vaccine)
+              ? 'optional'
+              : late >= 0
+                ? 'due'
+                : 'upcoming';
       return { vaccine: entry.vaccine, when: entry.when, day: entry.day, status, late, pending };
     });
 }
