@@ -44,9 +44,11 @@ export default function useBatchRecords(batchIds, reloadKey = 0) {
       .then(([mortalities, vaccinations, shifts, feeds, weights, sales]) => {
         if (cancelled) return;
         const newestFirst = (a, b) => new Date(b.createdAt) - new Date(a.createdAt);
+        // Vaccinations go by the day they were given, so ones entered afterwards fall into place
+        const latestGivenFirst = (a, b) => new Date(b.date) - new Date(a.date) || newestFirst(a, b);
         setRecords({
           mortalities: mortalities.flat().sort(newestFirst),
-          vaccinations: vaccinations.flat().sort(newestFirst),
+          vaccinations: vaccinations.flat().sort(latestGivenFirst),
           shifts: shifts.flat().sort(newestFirst),
           feeds: feeds.flat().sort(newestFirst),
           weights: weights.flat().sort(newestFirst),
