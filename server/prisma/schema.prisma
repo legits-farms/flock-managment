@@ -184,6 +184,9 @@ model Vaccination {
   schedule      String   @default("")
   remarks       String   @default("")
   birds         Int
+  // The farm decided this schedule entry is not needed for the batch: nothing was
+  // given (birds is 0) and the schedule no longer counts it as due
+  notRequired   Boolean  @default(false)
   photos        Photo[]
   createdById   String?
   createdByName String?

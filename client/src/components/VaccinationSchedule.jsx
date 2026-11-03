@@ -3,7 +3,13 @@ import useVaccineSchedule from '../useVaccineSchedule.js';
 
 const days = (count) => `${formatNumber(count)} ${count === 1 ? 'day' : 'days'}`;
 
-const STATUS_LABELS = { done: 'Done', due: 'Not Done', upcoming: 'Upcoming', optional: 'If Needed' };
+const STATUS_LABELS = {
+  done: 'Done',
+  due: 'Not Done',
+  upcoming: 'Upcoming',
+  optional: 'If Needed',
+  skipped: 'Not Required',
+};
 
 // Where the birds of a batch or coop stand on the vaccination schedule: for each
 // vaccine of their age so far whether it was given, and what is still to come.
@@ -39,7 +45,7 @@ export default function VaccinationSchedule({ entries, vaccinations, showCoop = 
         </h2>
         <p className="chart-figure">
           <strong>
-            {count('done')} / {rows.length - count('optional')}
+            {count('done')} / {rows.length - count('optional') - count('skipped')}
           </strong>
           <span>
             done

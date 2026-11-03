@@ -26,7 +26,7 @@ export default function RecentRecords() {
           ...vaccinations.map((r) => ({
             ...r,
             kind: 'Vaccination',
-            detail: `${r.vaccine} · ${formatNumber(r.birds)} birds`,
+            detail: `${r.vaccine} · ${r.notRequired ? 'Not required' : `${formatNumber(r.birds)} birds`}`,
             when: r.date,
             photoUrl: `/vaccinations/${r._id}/photo`,
           })),
