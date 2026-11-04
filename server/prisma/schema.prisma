@@ -67,6 +67,9 @@ model Batch {
   vendorPhone   String   @default("")
   vendorDetails String   @default("")
   shiftToFarm   String   @default("")
+  // Left out of the batch list, e.g. once its birds joined another batch. Its
+  // records are kept.
+  hidden        Boolean  @default(false)
   // The person named on the Enter Batch form; createdBy is the account that was logged in
   enteredBy     String?
   createdById   String?

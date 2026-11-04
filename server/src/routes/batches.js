@@ -17,7 +17,7 @@ const AGE_UNITS = ['days', 'weeks'];
 router.get('/', async (req, res, next) => {
   try {
     const batches = await prisma.batch.findMany({
-      where: batchScope(req.user),
+      where: { ...batchScope(req.user), hidden: false },
       orderBy: { createdAt: 'desc' },
       include: withCoops,
     });
