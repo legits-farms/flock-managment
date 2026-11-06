@@ -5,7 +5,6 @@ import {
   coopGroups,
   formatNumber,
   liveBirds,
-  shiftedOutBirds,
   totalMortality,
   totalSold,
   unallocatedBirds,
@@ -40,20 +39,21 @@ const Icon = ({ children }) => (
 
 function summarise(batches) {
   let birds = 0;
+  let live = 0;
   let mortality = 0;
   let sold = 0;
   const byBreed = new Map();
 
   for (const batch of batches) {
-    const live = liveBirds(batch);
-    // Birds that joined another batch are counted with that one
-    birds += batch.numberOfBirds - shiftedOutBirds(batch);
+    const batchLive = liveBirds(batch);
+    birds += batch.numberOfBirds;
+    live += batchLive;
     mortality += totalMortality(batch);
     sold += totalSold(batch);
 
     const breed = byBreed.get(batch.breed) || { breed: batch.breed, batches: 0, live: 0 };
     breed.batches += 1;
-    breed.live += live;
+    breed.live += batchLive;
     byBreed.set(batch.breed, breed);
   }
 
@@ -61,7 +61,7 @@ function summarise(batches) {
     birds,
     mortality,
     sold,
-    live: birds - mortality - sold,
+    live,
     mortalityPct: birds > 0 ? (mortality / birds) * 100 : 0,
     breeds: [...byBreed.values()].sort((a, b) => b.live - a.live),
   };
