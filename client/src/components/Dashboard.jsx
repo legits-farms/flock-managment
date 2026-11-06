@@ -5,6 +5,7 @@ import {
   coopGroups,
   formatNumber,
   liveBirds,
+  shiftedOutBirds,
   totalMortality,
   totalSold,
   unallocatedBirds,
@@ -45,7 +46,8 @@ function summarise(batches) {
 
   for (const batch of batches) {
     const live = liveBirds(batch);
-    birds += batch.numberOfBirds;
+    // Birds that joined another batch are counted with that one
+    birds += batch.numberOfBirds - shiftedOutBirds(batch);
     mortality += totalMortality(batch);
     sold += totalSold(batch);
 

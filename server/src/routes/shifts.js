@@ -160,11 +160,12 @@ router.post('/', async (req, res, next) => {
       });
 
       // Birds that joined another batch are counted with that batch from now on,
-      // so each batch's coops still add up to the birds it has
+      // so each batch's coops still add up to the birds it has. This one keeps
+      // what it received and counts them as shifted out.
       if (occupant) {
         await tx.batch.update({
           where: { id: batch.id },
-          data: { numberOfBirds: { decrement: arrived } },
+          data: { shiftedOut: { increment: arrived } },
         });
         await tx.batch.update({
           where: { id: occupant.batch.id },

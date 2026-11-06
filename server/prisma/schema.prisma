@@ -63,6 +63,9 @@ model Batch {
   numberOfBirds Int
   // Birds found dead in the delivery boxes on arrival
   boxMortality  Int      @default(0)
+  // Birds shifted out to join another batch. They stay in numberOfBirds, which
+  // is what the batch received, but are no longer this batch's to count.
+  shiftedOut    Int      @default(0)
   vendorName    String
   vendorPhone   String   @default("")
   vendorDetails String   @default("")

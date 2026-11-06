@@ -21,6 +21,7 @@ import {
   liveBirds,
   partLabel,
   partName,
+  shiftedOutBirds,
   totalMortality,
   totalSold,
   unallocatedBirds,
@@ -199,6 +200,12 @@ export default function ManageFlock({
             <dt>Sold Birds</dt>
             <dd>{formatNumber(totalSold(batch))}</dd>
           </div>
+          {shiftedOutBirds(batch) > 0 && (
+            <div>
+              <dt>Shifted Out</dt>
+              <dd>{formatNumber(shiftedOutBirds(batch))}</dd>
+            </div>
+          )}
           <div>
             <dt>Not Vaccinated</dt>
             <dd className={vaccinated !== null && live > vaccinated ? 'pending' : ''}>

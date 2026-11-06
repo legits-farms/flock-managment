@@ -43,6 +43,7 @@ export const batchJson = (batch) => ({
   ageUnit: batch.ageUnit,
   numberOfBirds: batch.numberOfBirds,
   boxMortality: batch.boxMortality,
+  shiftedOut: batch.shiftedOut,
   vendor: { name: batch.vendorName, phone: batch.vendorPhone, details: batch.vendorDetails },
   shiftToFarm: batch.shiftToFarm,
   coops: batch.coops.map(coopJson),
@@ -63,9 +64,11 @@ function farmBatchJson(batch, farm) {
     ...batch,
     coops: here,
     shiftToFarm: home ? batch.shiftToFarm : farm,
-    // Birds not yet in a coop, and those dead on arrival, are on the batch's own farm
+    // Birds not yet in a coop, those dead on arrival and those shifted out to
+    // another batch are counted on the batch's own farm
     numberOfBirds: home ? batch.numberOfBirds - (birds(batch.coops) - birds(here)) : birds(here),
     boxMortality: home ? batch.boxMortality : 0,
+    shiftedOut: home ? batch.shiftedOut : 0,
   });
 }
 
