@@ -130,7 +130,7 @@ router.post('/:id/coops', async (req, res, next) => {
     }
 
     const allocated = batch.coops.reduce((sum, coop) => sum + coop.birds, 0);
-    const unallocated = batch.numberOfBirds - batch.boxMortality - allocated;
+    const unallocated = batch.numberOfBirds - batch.boxMortality - batch.shiftedOut - allocated;
     if (birds > unallocated) {
       return res
         .status(400)

@@ -162,8 +162,12 @@ export function broodingDue(coopName, entries) {
     .filter((entry) => entry.birds > 0 && entry.age >= BROODING_DAYS);
 }
 
-// Birds that arrived alive and have to be allocated to coops
-export const placedBirds = (batch) => batch.numberOfBirds - batch.boxMortality;
+// Birds shifted out to join another batch
+export const shiftedOutBirds = (batch) => batch.shiftedOut ?? 0;
+
+// Birds that arrived alive and are this batch's to allocate to coops
+export const placedBirds = (batch) =>
+  batch.numberOfBirds - batch.boxMortality - shiftedOutBirds(batch);
 
 // Mortality on arrival plus everything registered in the coops since
 export const totalMortality = (batch) =>
@@ -173,7 +177,8 @@ export const totalMortality = (batch) =>
 export const totalSold = (batch) =>
   (batch.coops ?? []).reduce((sum, coop) => sum + (coop.sold ?? 0), 0);
 
-export const liveBirds = (batch) => batch.numberOfBirds - totalMortality(batch) - totalSold(batch);
+export const liveBirds = (batch) =>
+  batch.numberOfBirds - totalMortality(batch) - totalSold(batch) - shiftedOutBirds(batch);
 
 export const coopLive = (coop) => coop.birds - (coop.mortality ?? 0) - (coop.sold ?? 0);
 
