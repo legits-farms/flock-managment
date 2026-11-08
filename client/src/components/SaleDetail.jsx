@@ -8,6 +8,7 @@ import {
   formatNumber,
   formatRupees,
   genderCounts,
+  saleSplitByKg,
 } from '../flock.js';
 import PhotoLink from './PhotoLink.jsx';
 
@@ -56,6 +57,7 @@ export default function SaleDetail({ sale, onBack, onOpenBatch }) {
   // Sets without a gender are billed together; those with one, per gender
   const plain = sale.sets.filter((set) => !set.gender);
   const sum = (field) => plain.reduce((total, set) => total + set[field], 0);
+  const split = saleSplitByKg(sale);
   const bills = (
     sale.billBy === 'piece'
       ? [
@@ -72,20 +74,21 @@ export default function SaleDetail({ sale, onBack, onOpenBatch }) {
             'Birds',
             [perKg(sum('weightKg'), sale.ratePerKg), genderCounts(sale)].filter(Boolean).join(' · '),
             sale.birdBill,
-            sum('birds'),
+            !split && sum('birds'),
           ],
-          // Only in older sales, where a set was all male or all female at its own rate
+          // When the weight was split into male and female kg, and in older sales,
+          // where a set was all male or all female at its own rate
           [
             'Male birds',
             perKg(sale.maleWeightKg, sale.maleRate),
             sale.maleBill,
-            sale.sets.some((set) => set.gender === 'male'),
+            split ? sale.maleWeightKg > 0 : sale.sets.some((set) => set.gender === 'male'),
           ],
           [
             'Female birds',
             perKg(sale.femaleWeightKg, sale.femaleRate),
             sale.femaleBill,
-            sale.sets.some((set) => set.gender === 'female'),
+            split ? sale.femaleWeightKg > 0 : sale.sets.some((set) => set.gender === 'female'),
           ],
         ]
   ).filter(([, , , shown]) => shown);

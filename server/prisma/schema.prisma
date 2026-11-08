@@ -304,7 +304,8 @@ model Sale {
   // piece every male at maleRate and every female at femaleRate
   billBy           String    @default("kg")
   // Price per kg. The two below are the price of one male and one female when
-  // billed per piece (in older sales, the price per kg of all-male and all-female sets)
+  // billed per piece; per kg, the price per kg of the male and female weight when it
+  // is split (in older sales, of all-male and all-female sets)
   ratePerKg        Float     @default(0)
   maleRate         Float     @default(0)
   femaleRate       Float     @default(0)
