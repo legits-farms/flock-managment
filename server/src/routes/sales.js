@@ -316,7 +316,11 @@ router.post('/', async (req, res, next) => {
       throw badRequest(`The males and females must add up to the ${birds} birds in the sets`);
     }
 
-    const ratePerKg = perPiece ? 0 : parseAmount(req.body.ratePerKg, 'Rate per kg');
+    // Per kg, the weight of a sale of males and females can be split: the male kg
+    // is given and the rest is female, each billed at its own rate per kg
+    const splitKg =
+      !perPiece && req.body.maleWeightKg != null && req.body.maleWeightKg !== '';
+    const ratePerKg = perPiece || splitKg ? 0 : parseAmount(req.body.ratePerKg, 'Rate per kg');
     const maleRate = parseAmount(req.body.maleRate, perPiece ? 'Male rate per piece' : 'Male rate');
     const femaleRate = parseAmount(
       req.body.femaleRate,
@@ -326,15 +330,29 @@ router.post('/', async (req, res, next) => {
     // Per piece, every male is billed at one price and every female at another,
     // whatever they weigh. Per kg, the sets are billed on their weight at the plain
     // rate; a set of an older app that is all male or all female (`gender`) is
-    // billed on its own weight at its gender's rate per kg.
+    // billed on its own weight at its gender's rate per kg. A split weight bills the
+    // male kg at the male rate per kg and the rest at the female rate per kg.
     const total = (gender, field) =>
       sets.filter((set) => set.gender === gender).reduce((sum, set) => sum + set[field], 0);
-    const plainWeightKg = round(total(undefined, 'weightKg'), 3);
+    const setsWeightKg = round(total(undefined, 'weightKg'), 3);
+    let splitMaleKg = 0;
+    if (splitKg) {
+      if (sets.some((set) => set.gender)) {
+        throw badRequest('A sale with all-male or all-female sets cannot split its weight');
+      }
+      splitMaleKg = parseAmount(req.body.maleWeightKg, 'Male weight');
+      if (splitMaleKg > setsWeightKg) {
+        throw badRequest(`The male weight cannot be more than the ${setsWeightKg} kg of birds`);
+      }
+    }
+    const plainWeightKg = splitKg ? 0 : setsWeightKg;
     const birdBill = perPiece ? 0 : round(plainWeightKg * ratePerKg, 2);
     const maleBirds = counted ? males : total('male', 'birds');
     const femaleBirds = counted ? females : total('female', 'birds');
-    const maleWeightKg = round(total('male', 'weightKg'), 3);
-    const femaleWeightKg = round(total('female', 'weightKg'), 3);
+    const maleWeightKg = splitKg ? round(splitMaleKg, 3) : round(total('male', 'weightKg'), 3);
+    const femaleWeightKg = splitKg
+      ? round(setsWeightKg - splitMaleKg, 3)
+      : round(total('female', 'weightKg'), 3);
     const maleBill = round((perPiece ? maleBirds : maleWeightKg) * maleRate, 2);
     const femaleBill = round((perPiece ? femaleBirds : femaleWeightKg) * femaleRate, 2);
     const boxBill = round(boxQty * boxRate, 2);

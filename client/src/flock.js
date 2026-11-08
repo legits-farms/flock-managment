@@ -216,14 +216,25 @@ export const setWeightKg = (set) =>
     Math.max(0, (Number(set.boxWeightGross) || 0) - (Number(set.boxWeightEmpty) || 0)).toFixed(3),
   );
 
+// A sale billed per kg whose weight was split into male kg and female kg, each at its own
+// rate, rather than its sets being all male or all female as in older sales
+export const saleSplitByKg = (sale) =>
+  sale.billBy !== 'piece' &&
+  sale.maleWeightKg + sale.femaleWeightKg > 0 &&
+  !sale.sets.some((set) => set.gender);
+
 // What one weighed set of a saved sale was billed at. Per piece: its share of
 // what the sale's males and females came to. Per kg: its weight at the sale's rate per kg, or at
-// its gender's rate when the set has one.
+// its gender's rate when the set has one. When the weight was split into male and female kg,
+// its share of what those came to.
 export const saleSetBill = (sale, set) =>
   sale.billBy === 'piece'
     ? // The males and females are counted for the whole sale, so a set takes its share by birds
       (sale.birds > 0 ? set.birds / sale.birds : 0) * (sale.maleBill + sale.femaleBill)
-    : set.weightKg *
+    : saleSplitByKg(sale)
+      ? // The male and female kg are for the whole sale, so a set takes its share by weight
+        (sale.weightKg > 0 ? set.weightKg / sale.weightKg : 0) * (sale.maleBill + sale.femaleBill)
+      : set.weightKg *
       (set.gender === 'female'
         ? sale.femaleRate
         : set.gender === 'male'
@@ -241,9 +252,10 @@ export const genderCounts = (sale) =>
     .join(' · ');
 
 // What a sale comes to, plus any boxes bought. Billed per kg (`billBy` 'kg') it
-// is the weight of every set at one rate per kg; per piece ('piece') every male
-// at one price and every female at another, as counted for the whole sale. Matches the sums in
-// server/src/routes/sales.js.
+// is the weight of every set at one rate per kg or, when the male kg is given
+// (`maleWeightKg`), the male kg at the male rate and the rest at the female rate;
+// per piece ('piece') every male at one price and every female at another, as
+// counted for the whole sale. Matches the sums in server/src/routes/sales.js.
 export function saleTotals({
   sets,
   maleBirds: males,
@@ -252,6 +264,7 @@ export function saleTotals({
   ratePerKg,
   maleRate,
   femaleRate,
+  maleWeightKg: maleKg = null,
   boxMode,
   boxQty,
   boxRate,
@@ -267,9 +280,16 @@ export function saleTotals({
   const maleBirds = Number(males) || 0;
   const femaleBirds = Number(females) || 0;
   const weightKg = Number(sets.reduce((sum, set) => sum + setWeightKg(set), 0).toFixed(3));
-  const birdBill = perPiece ? 0 : rupees(weightKg * (Number(ratePerKg) || 0));
-  const maleBill = perPiece ? rupees(maleBirds * (Number(maleRate) || 0)) : 0;
-  const femaleBill = perPiece ? rupees(femaleBirds * (Number(femaleRate) || 0)) : 0;
+  // Per kg with the weight split into male and female kg
+  const splitKg = !perPiece && maleKg !== null;
+  const maleWeightKg = splitKg ? Math.min(weightKg, Number(maleKg) || 0) : 0;
+  const femaleWeightKg = splitKg ? Number((weightKg - maleWeightKg).toFixed(3)) : 0;
+  const birdBill = perPiece || splitKg ? 0 : rupees(weightKg * (Number(ratePerKg) || 0));
+  // Per piece on the birds counted, per kg on the split weight
+  const maleQty = perPiece ? maleBirds : maleWeightKg;
+  const femaleQty = perPiece ? femaleBirds : femaleWeightKg;
+  const maleBill = rupees(maleQty * (Number(maleRate) || 0));
+  const femaleBill = rupees(femaleQty * (Number(femaleRate) || 0));
   const boxBill = boxMode === 'buy' ? rupees((Number(boxQty) || 0) * (Number(boxRate) || 0)) : 0;
   // Other things on the same bill, e.g. eggs
   const itemBill = rupees(items.reduce((sum, item) => sum + rupees(item.qty * item.rate), 0));
@@ -284,6 +304,8 @@ export function saleTotals({
     maleBirds,
     femaleBirds,
     weightKg,
+    maleWeightKg,
+    femaleWeightKg,
     avgKg: birds > 0 ? weightKg / birds : 0,
     birdBill,
     maleBill,
