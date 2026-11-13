@@ -170,7 +170,9 @@ export default function RecordForm({
   const vaccines = [...VACCINATION_SCHEDULE, ...addedVaccines];
   const given = vaccines.find((entry) => vaccineKey(entry) === scheduled);
 
-  async function saveVaccine(name, when) {
+  // The schedule counts a vaccine named "… (If needed)" as given only when needed
+  async function saveVaccine(typed, when, ifNeeded) {
+    const name = ifNeeded && !/if needed/i.test(typed) ? `${typed} (If needed)` : typed;
     const entry = { vaccine: name, when };
     if (vaccines.some((other) => vaccineKey(other) === vaccineKey(entry))) {
       throw new Error(`Vaccine "${name}" is already on the list`);
@@ -390,6 +392,7 @@ export default function RecordForm({
               placeholder="Select vaccine"
               addLabel="Add new vaccine"
               noteLabel="Day / week (e.g. 18th Week)"
+              flagLabel="If needed (given only when the birds need it)"
               onAdd={saveVaccine}
             />
           </div>

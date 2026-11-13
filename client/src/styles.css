@@ -3178,6 +3178,19 @@ button.photo-link {
   gap: 10px;
 }
 
+.option-add-flag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.option-add-flag input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+
 .option-add-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;

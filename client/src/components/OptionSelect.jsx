@@ -9,6 +9,7 @@ const ADD = '__add__';
 // `options` ({ value, label, note }) replaces `names` when the entries carry a
 // note; `noteLabel` then asks for the new one's note too, passed on as
 // `onAdd(name, note)`, which resolves to the value to select.
+// `flagLabel` adds a checkbox for the new one, passed on as `onAdd(name, note, flagged)`.
 export default function OptionSelect({
   id,
   value,
@@ -18,11 +19,13 @@ export default function OptionSelect({
   placeholder,
   addLabel,
   noteLabel,
+  flagLabel,
   onAdd,
 }) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [newNote, setNewNote] = useState('');
+  const [flagged, setFlagged] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -47,11 +50,12 @@ export default function OptionSelect({
     setSaving(true);
     setError('');
     try {
-      const added = await onAdd(name, newNote.trim());
+      const added = await onAdd(name, newNote.trim(), flagged);
       onChange(added ?? name);
       setAdding(false);
       setNewName('');
       setNewNote('');
+      setFlagged(false);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -101,6 +105,16 @@ export default function OptionSelect({
           aria-label={noteLabel}
           maxLength={40}
         />
+      )}
+      {flagLabel && (
+        <label className="option-add-flag">
+          <input
+            type="checkbox"
+            checked={flagged}
+            onChange={(e) => setFlagged(e.target.checked)}
+          />
+          {flagLabel}
+        </label>
       )}
       <div className="option-add-actions">
         <button
