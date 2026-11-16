@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { getReceivedBirds } from '../api.js';
+import { useState } from 'react';
 import {
   batchAge,
   broodingDue,
@@ -80,18 +79,6 @@ export default function Dashboard({
 }) {
   // A mortality waiting for approval is open in full, in place of the dashboard
   const [approving, setApproving] = useState(false);
-  // Total Birds: what every batch received, hidden ones too, so it comes from the
-  // server. null until it arrives, or when it cannot be had.
-  const [received, setReceived] = useState(null);
-  useEffect(() => {
-    let current = true;
-    getReceivedBirds()
-      .then(({ birds }) => current && setReceived(birds))
-      .catch(() => current && setReceived(null));
-    return () => {
-      current = false;
-    };
-  }, [batches]);
   if (loading || error) return <LoadStatus loading={loading} error={error} onRetry={onRetry} />;
 
   // With no batches yet the dashboard still shows, every figure at zero
@@ -118,7 +105,7 @@ export default function Dashboard({
         <dl className={summary.sold > 0 ? 'hero-stats four' : 'hero-stats'}>
           <div>
             <dt>Total Birds</dt>
-            <dd>{received === null ? '–' : formatNumber(received)}</dd>
+            <dd>{formatNumber(summary.birds)}</dd>
           </div>
           <div>
             <dt>Mortality</dt>

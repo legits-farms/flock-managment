@@ -40,9 +40,6 @@ async function request(path, options) {
 
 export const getBatches = () => request('/batches');
 
-// The birds received across every batch, hidden ones too: { birds }
-export const getReceivedBirds = () => request('/batches/received');
-
 export const createBatch = (batch) =>
   request('/batches', { method: 'POST', body: JSON.stringify(batch) });
 
