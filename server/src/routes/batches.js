@@ -27,39 +27,6 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-// The birds received across every batch, hidden ones too: { birds }. Birds that
-// joined another batch were added to what that batch received as well, so they
-// are taken off again to count each bird once.
-router.get('/received', async (req, res, next) => {
-  try {
-    const batches = await prisma.batch.findMany({
-      where: batchScope(req.user),
-      select: { id: true, numberOfBirds: true },
-    });
-    const ids = new Set(batches.map((batch) => batch.id));
-    const received = batches.reduce((sum, batch) => sum + batch.numberOfBirds, 0);
-
-    const shifts = await prisma.shift.findMany({
-      select: { batchId: true, toCoopId: true, birds: true, mortality: true },
-    });
-    const coops = await prisma.coop.findMany({
-      where: { id: { in: shifts.map((shift) => shift.toCoopId) } },
-      select: { id: true, batchId: true },
-    });
-    const coopBatch = new Map(coops.map((coop) => [coop.id, coop.batchId]));
-    const joined = shifts.reduce((sum, shift) => {
-      const into = coopBatch.get(shift.toCoopId);
-      return into && into !== shift.batchId && ids.has(into)
-        ? sum + shift.birds - shift.mortality
-        : sum;
-    }, 0);
-
-    res.json({ birds: received - joined });
-  } catch (err) {
-    next(err);
-  }
-});
-
 // What the Enter Batch form sends, checked and as the columns of a batch
 function parseBatch(body) {
   const { vendor } = body;
