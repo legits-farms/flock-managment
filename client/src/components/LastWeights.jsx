@@ -5,22 +5,9 @@ import { batchAge, formatNumber, formatWeight, liveBirds } from '../flock.js';
 const formatDate = (value) =>
   new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
-const dayOf = (value) => new Date(value).toLocaleDateString('en-CA');
-
-// A batch's last avg weight: the day it was last weighed, with every coop weighed
-// that day taken together. { avgWeightG, date, coops }, or null if never weighed.
-function lastWeight(weights) {
-  if (weights.length === 0) return null;
-  const latest = weights.reduce((a, b) => (new Date(b.date) > new Date(a.date) ? b : a));
-  const sameDay = weights.filter((w) => dayOf(w.date) === dayOf(latest.date));
-  const birds = sameDay.reduce((sum, w) => sum + w.birds, 0);
-  const kg = sameDay.reduce((sum, w) => sum + w.totalWeightKg, 0);
-  return {
-    avgWeightG: Math.round((kg * 1000) / birds),
-    date: latest.date,
-    coops: [...new Set(sameDay.map((w) => w.coopName))],
-  };
-}
+// A batch's last avg weight: the weight entered last for it, like the coop and
+// records pages show. Weights come newest first.
+const lastWeight = (weights) => weights[0] ?? null;
 
 // Dashboard card: the last avg weight of each batch with live birds
 export default function LastWeights({ batches }) {
@@ -64,7 +51,7 @@ export default function LastWeights({ batches }) {
                   <div className="weight-last">
                     <strong>{formatWeight(last.avgWeightG)}</strong>
                     <small>
-                      {formatDate(last.date)} · {last.coops.join(', ')}
+                      {formatDate(last.date)} · {last.coopName}
                     </small>
                   </div>
                 ) : (
