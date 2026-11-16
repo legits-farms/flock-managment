@@ -244,6 +244,8 @@ model Weight {
   totalWeightKg Float
   // Worked out from the two above, in grams per bird
   avgWeightG    Float
+  // male | female | unknown: what the birds weighed were. Not on older entries
+  gender        String?
   remarks       String   @default("")
   createdById   String?
   createdByName String?

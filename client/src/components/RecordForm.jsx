@@ -13,6 +13,7 @@ import {
   MORTALITY_LABELS,
   RECORD_MORTALITY_TYPES,
   VACCINATION_SCHEDULE,
+  WEIGHT_GENDER_LABELS,
   coopFarm,
   coopLive,
   formatKg,
@@ -190,6 +191,8 @@ export default function RecordForm({
   // The boxes alone, then the birds in their boxes, as read off the scale
   const [boxWeightKg, setBoxWeightKg] = useState('');
   const [totalWeightKg, setTotalWeightKg] = useState('');
+  // male | female | unknown: what the birds weighed are
+  const [gender, setGender] = useState('');
   const [evidence, setEvidence] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -221,6 +224,9 @@ export default function RecordForm({
     if (type === 'feed' && !feedType) return setError('Please select the feed type.');
     if (config.birdsLabel && Number(birds) > coopLive(coop)) {
       return setError(`Only ${formatNumber(coopLive(coop))} live birds are in ${coop.name}.`);
+    }
+    if (type === 'weight' && !gender) {
+      return setError('Please select whether the birds are male, female or not sure.');
     }
     if (type === 'weight' && !(netKg > 0)) {
       return setError('The total weight must be more than the box weight.');
@@ -260,6 +266,7 @@ export default function RecordForm({
           date,
           boxWeightKg: Number(boxWeightKg || 0),
           grossWeightKg: Number(totalWeightKg),
+          gender,
           remarks,
         },
       }[type];
@@ -470,6 +477,20 @@ export default function RecordForm({
 
         {type === 'weight' && (
           <>
+            <div className="field">
+              <label htmlFor="record-gender">Male / Female</label>
+              <Dropdown
+                id="record-gender"
+                value={gender}
+                options={Object.entries(WEIGHT_GENDER_LABELS).map(([value, label]) => ({
+                  value,
+                  label,
+                }))}
+                onChange={setGender}
+                placeholder="Select male, female or not sure"
+              />
+            </div>
+
             <label className="field">
               <span>Box Weight (kg)</span>
               <input

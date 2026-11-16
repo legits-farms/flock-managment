@@ -7,6 +7,9 @@ import { batchRecordScope, checkCoopOnFarm, coopRecordScope } from '../scope.js'
 import { batchJsonFor, createdBy, recordJson } from '../serialize.js';
 import { parseDate, parseId, requiredText, text } from '../validate.js';
 
+// What the birds of a weight entry were: all male, all female, or not known
+const WEIGHT_GENDERS = ['male', 'female', 'unknown'];
+
 // `user` is the logged-in person: a manager is refused a coop on another farm
 async function findBatchAndCoop({ batchId, coopId }, user) {
   const batch = await findBatch(batchId);
@@ -290,6 +293,9 @@ export const weightRouter = recordRouter(
     }
     const totalWeightKg = Number((grossWeightKg - boxWeightKg).toFixed(3));
     if (totalWeightKg <= 0) throw badRequest('The total weight must be more than the box weight');
+    if (!WEIGHT_GENDERS.includes(body.gender)) {
+      throw badRequest('Select whether the birds are male, female or not sure');
+    }
 
     const record = await prisma.weight.create({
       data: {
@@ -302,6 +308,7 @@ export const weightRouter = recordRouter(
         boxWeightKg,
         totalWeightKg,
         avgWeightG: Math.round((totalWeightKg * 1000) / birds),
+        gender: body.gender,
         remarks: text(body.remarks),
         ...by,
       },

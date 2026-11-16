@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   MORTALITY_LABELS,
+  WEIGHT_GENDER_LABELS,
   photoCount,
   formatKg,
   formatNumber,
@@ -191,7 +192,10 @@ export default function BatchRecords({
             {weights.map((r) => (
               <li key={r._id}>
                 <EntryRow onOpen={onOpenEntry && (() => onOpenEntry('weight', r))}>
-                  <strong>{formatWeight(r.avgWeightG)} avg</strong>
+                  <strong>
+                    {formatWeight(r.avgWeightG)} avg
+                    {r.gender && ` · ${WEIGHT_GENDER_LABELS[r.gender]}`}
+                  </strong>
                   <small>
                     {label(r)} · {formatDate(r.date)}, {formatTime(r.createdAt)}
                     {byName(r.createdBy) && ` · By ${byName(r.createdBy)}`}

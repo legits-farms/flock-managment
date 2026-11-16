@@ -195,6 +195,9 @@ export const photoCount = (record) => 1 + (record.morePhotos?.length ?? 0);
 export const MORTALITY_LABELS = { box: 'Box', shift: 'Shift', brooding: 'Brooding', coop: 'Coop' };
 export const RECORD_MORTALITY_TYPES = ['shift', 'brooding', 'coop'];
 
+// What the birds of a weight entry were
+export const WEIGHT_GENDER_LABELS = { male: 'Male', female: 'Female', unknown: 'Not sure' };
+
 // How much of a sale's bill has been paid, and how
 export const PAYMENT_STATUS_LABELS = { unpaid: 'Unpaid', partial: 'Partly Paid', paid: 'Paid' };
 export const PAYMENT_MODE_LABELS = { cash: 'Cash', upi: 'UPI', bank: 'Bank Transfer' };
