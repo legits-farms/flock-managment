@@ -1,4 +1,4 @@
-import { formatKg, formatNumber, formatWeight } from '../flock.js';
+import { WEIGHT_GENDER_LABELS, formatKg, formatNumber, formatWeight } from '../flock.js';
 
 const formatDate = (value) =>
   new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -86,6 +86,13 @@ export default function EntryDetail({ kind, record, backLabel, onBack, onOpenBat
                 <dt>Birds Weighed</dt>
                 <dd>{formatNumber(record.birds)}</dd>
               </div>
+              {/* Entries from before it was asked have no gender */}
+              {record.gender && (
+                <div>
+                  <dt>Male / Female</dt>
+                  <dd>{WEIGHT_GENDER_LABELS[record.gender]}</dd>
+                </div>
+              )}
               {/* Entries from before the box was weighed have no box weight */}
               {record.boxWeightKg > 0 && (
                 <>
