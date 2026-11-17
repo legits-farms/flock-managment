@@ -71,10 +71,10 @@ export default function ShiftForm({
   const lost = Number(mortality) || 0;
 
   // Every coop of the destination farm the batch can go to, except the one the
-  // birds are leaving. A coop split into parts is offered part by part.
+  // birds are leaving. A coop split into parts is offered as a whole and part by part.
   const houses = coopsWithParts(coopsForBatch(coopsOnFarm(coopsByFarm, toFarm), entry?.batch));
   const toCoops = houses
-    .flatMap((coop) => (coop.parts.length > 0 ? coop.parts : [coop.name]))
+    .flatMap((coop) => [coop.name, ...coop.parts])
     .filter((name) => !(group && sameName(name, group.name) && sameName(toFarm, group.farm)));
   // The batch already in the chosen coop, which the birds can join or make room beside
   const occupant = entry && toCoop ? coopOccupant(batches, toFarm, toCoop, entry.batch) : undefined;
