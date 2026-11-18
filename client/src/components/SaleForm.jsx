@@ -141,7 +141,7 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
   // Which of the two was typed last: 'male' | 'female'. The other is worked out from it.
   const [sexTyped, setSexTyped] = useState(null);
   // 'male' | 'female': every bird is that one. 'both': the males and females are typed.
-  // 'unsure': they are not counted, so the sale can only be billed per kg.
+  // 'unsure': they are not counted, and every bird is billed at one rate.
   const [sexMix, setSexMix] = useState('both');
   // Whether the farm, coop and batch are open to be changed once they are chosen
   const [pickingCoop, setPickingCoop] = useState(false);
@@ -212,6 +212,9 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
 
   // Billed per kg with both males and females, each at its own rate per kg
   const splitKg = billBy === 'kg' && sexMix === 'both';
+  // One rate for every bird: per kg unless the weight is split, per piece when
+  // the males and females are not counted
+  const oneRate = billBy === 'kg' ? !splitKg : sexMix === 'unsure';
   const totals = saleTotals({
     sets,
     maleBirds,
@@ -221,6 +224,7 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
     maleRate,
     femaleRate,
     maleWeightKg: splitKg ? maleKg : null,
+    uncounted: sexMix === 'unsure',
     boxMode,
     boxQty,
     boxRate,
@@ -263,8 +267,6 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
   };
   const pickSexMix = (mix) => {
     setSexMix(mix);
-    // Per piece needs the males and females counted
-    if (mix === 'unsure') setBillBy('kg');
     if (mix === 'both' || mix === 'unsure') {
       setMaleBirds('');
       setFemaleBirds('');
@@ -281,16 +283,16 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
 
   // The lines of the invoice on the payment page
   const invoiceRows = [
-    ...(billBy === 'kg' && !splitKg
+    ...(oneRate
       ? [
           {
             item:
               sexMix === 'male' || sexMix === 'female'
                 ? `${SEX_MIX_LABELS[sexMix]} Birds`
                 : 'Live Birds',
-            qty: totals.weightKg,
+            qty: billBy === 'kg' ? totals.weightKg : totals.birds,
             price: Number(ratePerKg) || 0,
-            unit: 'kg',
+            unit: billBy === 'kg' ? 'kg' : 'pc',
             total: totals.birdBill,
           },
         ]
@@ -589,7 +591,7 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
           femaleBirds: totals.femaleBirds,
         }),
         billBy,
-        ...(billBy === 'piece' || splitKg
+        ...(!oneRate
           ? { maleRate: Number(maleRate) || 0, femaleRate: Number(femaleRate) || 0 }
           : { ratePerKg: Number(ratePerKg) || 0 }),
         ...(splitKg && { maleWeightKg: totals.maleWeightKg }),
@@ -835,41 +837,44 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
         {step === 2 && (
           <>
             {/* What the customer asked for beside what is in the boxes so far, kept on
-                screen so the birds can be picked to come out at the average wanted */}
-            <div className="target">
-              <dl>
-                <div>
-                  <dt>Customer Wants</dt>
-                  <dd>{wanted.birds > 0 ? `${formatNumber(wanted.birds)} birds` : '— birds'}</dd>
-                  <dd>avg {wanted.avgKg > 0 ? formatKg(wanted.avgKg) : '—'}</dd>
-                  {requirement.breed && <dd className="breed">{requirement.breed}</dd>}
-                </div>
-                <div>
-                  <dt>Added So Far</dt>
-                  <dd>{formatNumber(totals.birds)} birds</dd>
-                  <dd className={avgOff ? 'off' : ''}>
-                    avg {totals.birds > 0 ? formatKg(Number(totals.avgKg.toFixed(3))) : '—'}
-                  </dd>
-                </div>
-              </dl>
-              {wanted.birds > 0 && (
-                <>
-                  <div
-                    className={totals.birds > wanted.birds ? 'target-bar over' : 'target-bar'}
-                    aria-hidden="true"
-                  >
-                    <span style={{ width: `${Math.min(100, (totals.birds / wanted.birds) * 100)}%` }} />
+                screen so the birds can be picked to come out at the average wanted.
+                Left out when no birds, average or breed was asked for. */}
+            {(wanted.birds > 0 || wanted.avgKg > 0 || requirement.breed) && (
+              <div className="target">
+                <dl>
+                  <div>
+                    <dt>Customer Wants</dt>
+                    <dd>{wanted.birds > 0 ? `${formatNumber(wanted.birds)} birds` : '— birds'}</dd>
+                    <dd>avg {wanted.avgKg > 0 ? formatKg(wanted.avgKg) : '—'}</dd>
+                    {requirement.breed && <dd className="breed">{requirement.breed}</dd>}
                   </div>
-                  <p>
-                    {totals.birds < wanted.birds
-                      ? `${formatNumber(wanted.birds - totals.birds)} more birds to add`
-                      : totals.birds === wanted.birds
-                        ? '✓ All the birds the customer wants are added'
-                        : `${formatNumber(totals.birds - wanted.birds)} birds more than the customer wants`}
-                  </p>
-                </>
-              )}
-            </div>
+                  <div>
+                    <dt>Added So Far</dt>
+                    <dd>{formatNumber(totals.birds)} birds</dd>
+                    <dd className={avgOff ? 'off' : ''}>
+                      avg {totals.birds > 0 ? formatKg(Number(totals.avgKg.toFixed(3))) : '—'}
+                    </dd>
+                  </div>
+                </dl>
+                {wanted.birds > 0 && (
+                  <>
+                    <div
+                      className={totals.birds > wanted.birds ? 'target-bar over' : 'target-bar'}
+                      aria-hidden="true"
+                    >
+                      <span style={{ width: `${Math.min(100, (totals.birds / wanted.birds) * 100)}%` }} />
+                    </div>
+                    <p>
+                      {totals.birds < wanted.birds
+                        ? `${formatNumber(wanted.birds - totals.birds)} more birds to add`
+                        : totals.birds === wanted.birds
+                          ? '✓ All the birds the customer wants are added'
+                          : `${formatNumber(totals.birds - wanted.birds)} birds more than the customer wants`}
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
 
             <section className={boxCount > 0 ? 'stage done' : 'stage'}>
               <header>
@@ -1132,7 +1137,7 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
                   <p>
                     Choose whether the birds are all male, all female, or both. For both, enter how
                     many are male and the females are worked out for you. Not sure leaves them
-                    uncounted and the sale is billed per kg.
+                    uncounted and bills every bird at one rate.
                   </p>
                 </div>
               </header>
@@ -1183,10 +1188,7 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
             <div className="field">
               <span>How is the price counted?</span>
               <div className="choice" role="group" aria-label="Bill per kg or per piece">
-                {Object.entries(BILL_BY_LABELS)
-                  // Per piece needs the males and females counted
-                  .filter(([value]) => sexMix !== 'unsure' || value !== 'piece')
-                  .map(([value, label]) => (
+                {Object.entries(BILL_BY_LABELS).map(([value, label]) => (
                   <button
                     key={value}
                     type="button"
@@ -1200,10 +1202,10 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
               </div>
             </div>
 
-            {billBy === 'kg' && !splitKg && (
+            {oneRate && (
               <label className="field">
                 <span>
-                  Rate per kg
+                  Rate per {billBy === 'kg' ? 'kg' : 'pc'}
                   {(sexMix === 'male' || sexMix === 'female') && ` for ${SEX_MIX_LABELS[sexMix]}`} (₹)
                 </span>
                 <input {...decimal} value={ratePerKg} onChange={(e) => setRatePerKg(e.target.value)} />
@@ -1224,7 +1226,7 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
                 </p>
               </>
             )}
-            {(billBy === 'piece' || splitKg) && (
+            {!oneRate && (
               <div className="field-row">
                 {sexMix !== 'female' && (
                   <label className="field">
