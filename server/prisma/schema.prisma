@@ -305,7 +305,8 @@ model Sale {
   // kg | piece. Per kg the birds are billed on their weight at ratePerKg; per
   // piece every male at maleRate and every female at femaleRate
   billBy           String    @default("kg")
-  // Price per kg. The two below are the price of one male and one female when
+  // Price per kg; per piece, the price of every bird when the males and females
+  // were not counted. The two below are the price of one male and one female when
   // billed per piece; per kg, the price per kg of the male and female weight when it
   // is split (in older sales, of all-male and all-female sets)
   ratePerKg        Float     @default(0)

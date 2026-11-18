@@ -61,6 +61,13 @@ export default function SaleDetail({ sale, onBack, onOpenBatch }) {
   const bills = (
     sale.billBy === 'piece'
       ? [
+          // Not counted as males and females: every bird at the one price
+          [
+            'Birds',
+            perPiece(sale.birds, sale.ratePerKg),
+            sale.birdBill,
+            sale.maleBirds + sale.femaleBirds === 0,
+          ],
           ['Male birds', perPiece(sale.maleBirds, sale.maleRate), sale.maleBill, sale.maleBirds],
           [
             'Female birds',
