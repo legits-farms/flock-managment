@@ -306,9 +306,9 @@ router.post('/', async (req, res, next) => {
     if (!BILL_BY.includes(billBy)) throw badRequest('Select billing per kg or per piece');
     const perPiece = billBy === 'piece';
 
-    // Once every set is weighed, how many of the birds are male and how many female
+    // Once every set is weighed, how many of the birds are male and how many female.
+    // Not counted, every bird is billed at the one rate, per kg or per piece.
     const counted = req.body.maleBirds != null || req.body.femaleBirds != null;
-    if (perPiece && !counted) throw badRequest('Enter the number of males and females');
     const males = counted ? parseCount(req.body.maleBirds, 'No. of males') : 0;
     const females = counted ? parseCount(req.body.femaleBirds, 'No. of females') : 0;
     const birds = sets.reduce((sum, set) => sum + set.birds, 0);
@@ -320,7 +320,11 @@ router.post('/', async (req, res, next) => {
     // is given and the rest is female, each billed at its own rate per kg
     const splitKg =
       !perPiece && req.body.maleWeightKg != null && req.body.maleWeightKg !== '';
-    const ratePerKg = perPiece || splitKg ? 0 : parseAmount(req.body.ratePerKg, 'Rate per kg');
+    // Per piece and not counted, this is the price of every bird
+    const ratePerKg =
+      (perPiece && counted) || splitKg
+        ? 0
+        : parseAmount(req.body.ratePerKg, perPiece ? 'Rate per piece' : 'Rate per kg');
     const maleRate = parseAmount(req.body.maleRate, perPiece ? 'Male rate per piece' : 'Male rate');
     const femaleRate = parseAmount(
       req.body.femaleRate,
@@ -346,7 +350,11 @@ router.post('/', async (req, res, next) => {
       }
     }
     const plainWeightKg = splitKg ? 0 : setsWeightKg;
-    const birdBill = perPiece ? 0 : round(plainWeightKg * ratePerKg, 2);
+    const birdBill = perPiece
+      ? counted
+        ? 0
+        : round(birds * ratePerKg, 2)
+      : round(plainWeightKg * ratePerKg, 2);
     const maleBirds = counted ? males : total('male', 'birds');
     const femaleBirds = counted ? females : total('female', 'birds');
     const maleWeightKg = splitKg ? round(splitMaleKg, 3) : round(total('male', 'weightKg'), 3);

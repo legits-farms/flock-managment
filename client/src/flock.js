@@ -233,7 +233,8 @@ export const saleSplitByKg = (sale) =>
 export const saleSetBill = (sale, set) =>
   sale.billBy === 'piece'
     ? // The males and females are counted for the whole sale, so a set takes its share by birds
-      (sale.birds > 0 ? set.birds / sale.birds : 0) * (sale.maleBill + sale.femaleBill)
+      (sale.birds > 0 ? set.birds / sale.birds : 0) *
+      (sale.birdBill + sale.maleBill + sale.femaleBill)
     : saleSplitByKg(sale)
       ? // The male and female kg are for the whole sale, so a set takes its share by weight
         (sale.weightKg > 0 ? set.weightKg / sale.weightKg : 0) * (sale.maleBill + sale.femaleBill)
@@ -257,8 +258,9 @@ export const genderCounts = (sale) =>
 // What a sale comes to, plus any boxes bought. Billed per kg (`billBy` 'kg') it
 // is the weight of every set at one rate per kg or, when the male kg is given
 // (`maleWeightKg`), the male kg at the male rate and the rest at the female rate;
-// per piece ('piece') every male at one price and every female at another, as
-// counted for the whole sale. Matches the sums in server/src/routes/sales.js.
+// per piece ('piece') every male at one price and every female at another,
+// as counted for the whole sale, or every bird at the one price `ratePerKg`
+// when they were not counted (`uncounted`). Matches the sums in server/src/routes/sales.js.
 export function saleTotals({
   sets,
   maleBirds: males,
@@ -268,6 +270,7 @@ export function saleTotals({
   maleRate,
   femaleRate,
   maleWeightKg: maleKg = null,
+  uncounted = false,
   boxMode,
   boxQty,
   boxRate,
@@ -287,7 +290,10 @@ export function saleTotals({
   const splitKg = !perPiece && maleKg !== null;
   const maleWeightKg = splitKg ? Math.min(weightKg, Number(maleKg) || 0) : 0;
   const femaleWeightKg = splitKg ? Number((weightKg - maleWeightKg).toFixed(3)) : 0;
-  const birdBill = perPiece || splitKg ? 0 : rupees(weightKg * (Number(ratePerKg) || 0));
+  // One rate for every bird: on the weight, or per piece when not counted
+  const birdBill = splitKg || (perPiece && !uncounted)
+    ? 0
+    : rupees((perPiece ? birds : weightKg) * (Number(ratePerKg) || 0));
   // Per piece on the birds counted, per kg on the split weight
   const maleQty = perPiece ? maleBirds : maleWeightKg;
   const femaleQty = perPiece ? femaleBirds : femaleWeightKg;
