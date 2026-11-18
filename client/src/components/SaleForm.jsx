@@ -1251,20 +1251,16 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
               <legend>Boxes / Crates</legend>
 
               <div className="field">
-                <span>Whose boxes did the birds leave in?</span>
-                <div className="choice stack" role="group" aria-label="Whose boxes">
-                  {Object.entries(BOX_MODE_LABELS).map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      aria-pressed={boxMode === value}
-                      className={boxMode === value ? 'active' : ''}
-                      onClick={() => setBoxMode(value)}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                <label htmlFor="sale-box-mode">Whose boxes did the birds leave in?</label>
+                <Dropdown
+                  id="sale-box-mode"
+                  value={boxMode}
+                  options={Object.entries(BOX_MODE_LABELS).map(([value, label]) => ({
+                    value,
+                    label,
+                  }))}
+                  onChange={setBoxMode}
+                />
               </div>
 
               {boxMode === 'borrow' && (
