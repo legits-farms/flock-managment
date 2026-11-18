@@ -2523,7 +2523,10 @@ dt {
 /* Bottom tabs: icon stacked over the label */
 
 .tab-bar {
-  grid-template-columns: repeat(5, 1fr);
+  /* One column per tab, however many the user has */
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   gap: 2px;
   padding-left: 6px;
   padding-right: 6px;
