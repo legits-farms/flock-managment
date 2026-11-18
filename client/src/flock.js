@@ -539,11 +539,12 @@ export function coopsOnFarm(coopsByFarm, farm) {
 // A part of a coop is the coop's name followed by a letter or a name: "Coop 5C"
 // is part C of "Coop 5", "Coop 4 Sonali" its part Sonali. A brooding house ends
 // in a letter, so its parts are numbered: "Brooding A2" is part 2 of "Brooding A",
-// "Brooding A Sonali" its part Sonali. { coop, label }, or null for any other name.
+// "Brooding A Sonali" its part Sonali. A name in brackets is a part too: "Coop 4
+// (batch 7)" is part "(batch 7)" of "Coop 4". { coop, label }, or null for any other name.
 export function partOf(name) {
   const text = name.trim();
   const match =
-    /^(brooding\s+[a-z])(?:(\d+)|\s+([a-z].*))$/i.exec(text) ?? /^(.*\d)\s*([a-z].*)$/i.exec(text);
+    /^(brooding\s+[a-z])(?:(\d+)|\s+([a-z(].*))$/i.exec(text) ?? /^(.*\d)\s*([a-z(].*)$/i.exec(text);
   return match ? { coop: match[1], label: match[2] ?? match[3] } : null;
 }
 
