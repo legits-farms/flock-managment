@@ -52,7 +52,7 @@ const GSTIN = /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/;
 
 const BILL_BY_LABELS = { kg: 'Per kg', piece: 'Per piece' };
 // Whether the birds sold are all male, all female, or some of each
-const SEX_MIX_LABELS = { male: 'Male', female: 'Female', both: 'Both' };
+const SEX_MIX_LABELS = { male: 'Male', female: 'Female', both: 'Both', unsure: 'Not Sure' };
 
 // The form is filled in over four pages, in the order a sale happens
 const STEPS = [
@@ -141,6 +141,7 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
   // Which of the two was typed last: 'male' | 'female'. The other is worked out from it.
   const [sexTyped, setSexTyped] = useState(null);
   // 'male' | 'female': every bird is that one. 'both': the males and females are typed.
+  // 'unsure': they are not counted, so the sale can only be billed per kg.
   const [sexMix, setSexMix] = useState('both');
   // Whether the farm, coop and batch are open to be changed once they are chosen
   const [pickingCoop, setPickingCoop] = useState(false);
@@ -238,7 +239,9 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
   // Weight of the birds in the box being entered, and of each of them
   const boxKg = setWeightKg({ boxWeightGross: weighing.boxWeightGross, boxWeightEmpty: tareKg });
   const boxAvgKg = Number(weighing.birds) > 0 ? boxKg / Number(weighing.birds) : 0;
-  const counted = totals.birds > 0 && totals.maleBirds + totals.femaleBirds === totals.birds;
+  const counted =
+    totals.birds > 0 &&
+    (sexMix === 'unsure' || totals.maleBirds + totals.femaleBirds === totals.birds);
   // The box being entered is more than 50 g a bird away from the average wanted
   const boxAvgOff = wanted.avgKg > 0 && boxAvgKg > 0 && Math.abs(boxAvgKg - wanted.avgKg) > 0.05;
   // Typing the males fills in the females out of the birds in the boxes, and the other way round
@@ -260,7 +263,9 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
   };
   const pickSexMix = (mix) => {
     setSexMix(mix);
-    if (mix === 'both') {
+    // Per piece needs the males and females counted
+    if (mix === 'unsure') setBillBy('kg');
+    if (mix === 'both' || mix === 'unsure') {
       setMaleBirds('');
       setFemaleBirds('');
       setSexTyped(null);
@@ -270,7 +275,7 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
   };
   // A box added or removed after the count changes what is left for the other
   useEffect(() => {
-    if (sexMix !== 'both') fillAll(sexMix);
+    if (sexMix === 'male' || sexMix === 'female') fillAll(sexMix);
     else if (sexTyped) fillOther(sexTyped, sexTyped === 'male' ? maleBirds : femaleBirds);
   }, [totals.birds]);
 
@@ -279,7 +284,10 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
     ...(billBy === 'kg' && !splitKg
       ? [
           {
-            item: sexMix === 'both' ? 'Live Birds' : `${SEX_MIX_LABELS[sexMix]} Birds`,
+            item:
+              sexMix === 'male' || sexMix === 'female'
+                ? `${SEX_MIX_LABELS[sexMix]} Birds`
+                : 'Live Birds',
             qty: totals.weightKg,
             price: Number(ratePerKg) || 0,
             unit: 'kg',
@@ -523,7 +531,7 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
         return 'Press “Add Box” to keep the box you typed.';
       }
       if (sets.length === 0) return 'Add at least one box of birds.';
-      if (totals.maleBirds + totals.femaleBirds !== totals.birds) {
+      if (sexMix !== 'unsure' && totals.maleBirds + totals.femaleBirds !== totals.birds) {
         return `The males and females must add up to the ${formatNumber(totals.birds)} birds in the boxes.`;
       }
     }
@@ -575,8 +583,11 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
         date,
         notes,
         sets: sets.map(({ batchName, coopName, ...set }) => set),
-        maleBirds: totals.maleBirds,
-        femaleBirds: totals.femaleBirds,
+        // Left out when not sure, so the sale is saved without a count
+        ...(sexMix !== 'unsure' && {
+          maleBirds: totals.maleBirds,
+          femaleBirds: totals.femaleBirds,
+        }),
         billBy,
         ...(billBy === 'piece' || splitKg
           ? { maleRate: Number(maleRate) || 0, femaleRate: Number(femaleRate) || 0 }
@@ -1120,12 +1131,13 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
                   <h3>Males and Females</h3>
                   <p>
                     Choose whether the birds are all male, all female, or both. For both, enter how
-                    many are male and the females are worked out for you.
+                    many are male and the females are worked out for you. Not sure leaves them
+                    uncounted and the sale is billed per kg.
                   </p>
                 </div>
               </header>
 
-              <div className="choice" role="group" aria-label="Male, female or both">
+              <div className="choice" role="group" aria-label="Male, female, both or not sure">
                 {Object.entries(SEX_MIX_LABELS).map(([value, label]) => (
                   <button
                     key={value}
@@ -1153,7 +1165,9 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
               )}
               {totals.birds > 0 && (
                 <p className={counted ? 'hint ok' : 'hint'}>
-                  {counted
+                  {sexMix === 'unsure'
+                    ? `✓ ${formatNumber(totals.birds)} birds, males and females not counted`
+                    : counted
                     ? `✓ All ${formatNumber(totals.birds)} birds counted`
                     : `${formatNumber(totals.maleBirds + totals.femaleBirds)} of the ${formatNumber(
                         totals.birds,
@@ -1169,7 +1183,10 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
             <div className="field">
               <span>How is the price counted?</span>
               <div className="choice" role="group" aria-label="Bill per kg or per piece">
-                {Object.entries(BILL_BY_LABELS).map(([value, label]) => (
+                {Object.entries(BILL_BY_LABELS)
+                  // Per piece needs the males and females counted
+                  .filter(([value]) => sexMix !== 'unsure' || value !== 'piece')
+                  .map(([value, label]) => (
                   <button
                     key={value}
                     type="button"
@@ -1186,7 +1203,8 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
             {billBy === 'kg' && !splitKg && (
               <label className="field">
                 <span>
-                  Rate per kg{sexMix !== 'both' && ` for ${SEX_MIX_LABELS[sexMix]}`} (₹)
+                  Rate per kg
+                  {(sexMix === 'male' || sexMix === 'female') && ` for ${SEX_MIX_LABELS[sexMix]}`} (₹)
                 </span>
                 <input {...decimal} value={ratePerKg} onChange={(e) => setRatePerKg(e.target.value)} />
               </label>
