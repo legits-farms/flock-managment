@@ -17,6 +17,7 @@ import SaleForm from './components/SaleForm.jsx';
 import SecurityHome from './components/SecurityHome.jsx';
 import ShiftForm from './components/ShiftForm.jsx';
 import Records from './components/Records.jsx';
+import Sales from './components/Sales.jsx';
 import Users from './components/Users.jsx';
 
 // Stroke icons for the tabs, drawn alike so they sit evenly in the bar
@@ -67,6 +68,18 @@ const TABS = [
       <TabIcon>
         <path d="M3 10.5 12 4l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-9.5Z" />
         <path d="M9.5 21v-6h5v6" />
+      </TabIcon>
+    ),
+  },
+  // For admins and staff, not a farm manager
+  {
+    id: 'sales',
+    label: 'Sales',
+    staffOnly: true,
+    icon: (
+      <TabIcon>
+        <path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z" />
+        <circle cx="7.5" cy="7.5" r="1.5" />
       </TabIcon>
     ),
   },
@@ -286,6 +299,7 @@ function Flock({ user, onLogout }) {
 
   // A farm manager has their own farm alone
   const canAddFarm = user.role !== 'manager';
+  const tabs = TABS.filter((t) => !t.staffOnly || user.role !== 'manager');
   const managing = batches.find((b) => b._id === managingId);
   const viewingCoop = coopKey && coopGroups(batches).find((group) => group.key === coopKey);
 
@@ -446,6 +460,14 @@ function Flock({ user, onLogout }) {
               onOpenFarm={setFarmName}
             />
           ))}
+        {!entering && tab === 'sales' && user.role !== 'manager' && (
+          <Sales
+            batches={batches}
+            onOpenBatch={openBatch}
+            onUpdated={handleUpdated}
+            onNavigate={goToTab}
+          />
+        )}
         {!entering && tab === 'records' && (
           <Records batches={batches} onOpenBatch={openBatch} onUpdated={handleUpdated} />
         )}
@@ -453,7 +475,7 @@ function Flock({ user, onLogout }) {
       </main>
 
       <nav className="tab-bar" aria-label="Main">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
