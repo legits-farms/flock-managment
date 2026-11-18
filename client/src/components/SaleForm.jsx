@@ -204,6 +204,10 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
   const boxCount = emptySets.reduce((sum, set) => sum + set.boxes, 0);
   const emptyKg = Number(emptySets.reduce((sum, set) => sum + set.weightKg, 0).toFixed(3));
   const tareKg = Number((emptyKg / (boxCount || 1)).toFixed(3));
+  // With no empty boxes weighed, the birds are weighed in sets and boxes are not
+  // mentioned: what is weighed is the birds alone
+  const unit = boxCount > 0 ? 'Box' : 'Set';
+  const units = boxCount > 0 ? 'boxes' : 'sets';
   // Photos the set being entered can still take: a set and a whole sale each have a limit
   const photosLeft = Math.min(
     MAX_SET_PHOTOS,
@@ -468,7 +472,7 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
     }
     if (!entry) return setError('Please select the farm, coop and batch the birds come from.');
     if (!Number.isInteger(birds) || birds < 1) {
-      return setError('Enter the number of birds in this box.');
+      return setError(`Enter the number of birds in this ${unit.toLowerCase()}.`);
     }
     if (birds > available) {
       return setError(`Only ${formatNumber(available)} live birds are left in ${group.name}.`);
@@ -485,7 +489,7 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
         batchName: entry.batch.batchName,
         coopId: entry.coop._id,
         coopName: entry.coop.name,
-        boxNo: boxNo.trim(),
+        boxNo: boxCount > 0 ? boxNo.trim() : '',
         birds,
         boxes: 1,
         boxWeightEmpty: tareKg,
@@ -530,11 +534,11 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
         return 'Press “Add Empty Boxes” to keep the empty boxes you typed.';
       }
       if (weighing.birds || weighing.boxWeightGross || photos.length > 0) {
-        return 'Press “Add Box” to keep the box you typed.';
+        return `Press “Add ${unit}” to keep the ${unit.toLowerCase()} you typed.`;
       }
-      if (sets.length === 0) return 'Add at least one box of birds.';
+      if (sets.length === 0) return `Add at least one ${unit.toLowerCase()} of birds.`;
       if (sexMix !== 'unsure' && totals.maleBirds + totals.femaleBirds !== totals.birds) {
-        return `The males and females must add up to the ${formatNumber(totals.birds)} birds in the boxes.`;
+        return `The males and females must add up to the ${formatNumber(totals.birds)} birds added.`;
       }
     }
     if (page === 3) {
@@ -948,8 +952,12 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
                   {sets.length > 0 ? '✓' : 2}
                 </span>
                 <div>
-                  <h3>Boxes of Birds</h3>
-                  <p>Fill one box, weigh it, take its photo, then press Add Box.</p>
+                  <h3>{boxCount > 0 ? 'Boxes of Birds' : 'Sets of Birds'}</h3>
+                  <p>
+                    {boxCount > 0
+                      ? 'Fill one box, weigh it, take its photo, then press Add Box.'
+                      : 'Weigh a set of birds, take its photo, then press Add Set.'}
+                  </p>
                 </div>
               </header>
 
@@ -1018,18 +1026,20 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
                 </>
               )}
 
-              <div className="field-row">
-                <label className="field">
-                  <span>Box No.</span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={20}
-                    value={boxNo}
-                    onChange={(e) => setBoxNo(e.target.value)}
-                    placeholder="On the box"
-                  />
-                </label>
+              <div className={boxCount > 0 ? 'field-row' : undefined}>
+                {boxCount > 0 && (
+                  <label className="field">
+                    <span>Box No.</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={20}
+                      value={boxNo}
+                      onChange={(e) => setBoxNo(e.target.value)}
+                      placeholder="On the box"
+                    />
+                  </label>
+                )}
                 <label className="field">
                   <span>No. of Birds</span>
                   <input
@@ -1042,7 +1052,7 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
               </div>
 
               <label className="field">
-                <span>Box Weight with Birds (kg)</span>
+                <span>{boxCount > 0 ? 'Box Weight with Birds (kg)' : 'Birds Weight (kg)'}</span>
                 <input
                   {...decimal}
                   value={weighing.boxWeightGross}
@@ -1052,7 +1062,7 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
 
               <dl className="readout">
                 <div>
-                  <dt>Birds in this Box</dt>
+                  <dt>Birds in this {unit}</dt>
                   <dd>{formatKg(boxKg)}</dd>
                 </div>
                 <div>
@@ -1064,7 +1074,7 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
               </dl>
 
               <div className="field">
-                <span>Photo of this Box</span>
+                <span>Photo of this {unit}</span>
                 {photosLeft > 0 ? (
                   <PhotoCapture value={photos} onChange={setPhotos} max={photosLeft} />
                 ) : (
@@ -1073,11 +1083,11 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
               </div>
 
               <button type="button" className="secondary add" onClick={addSet}>
-                + Add Box
+                + Add {unit}
               </button>
 
               {sets.length === 0 ? (
-                <p className="empty">No boxes added yet.</p>
+                <p className="empty">No {units} added yet.</p>
               ) : (
                 <ul className="box-list">
                   {sets.map((set, i) => (
@@ -1099,7 +1109,7 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
                       <em>{formatKg(Number((setWeightKg(set) / set.birds).toFixed(3)))} each</em>
                       <button
                         type="button"
-                        aria-label={`Remove box ${i + 1}`}
+                        aria-label={`Remove ${unit.toLowerCase()} ${i + 1}`}
                         onClick={() => setSets((prev) => prev.filter((_, at) => at !== i))}
                       >
                         ×
@@ -1112,7 +1122,7 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
               {sets.length > 0 && (
                 <dl className="tally">
                   <div>
-                    <dt>Boxes</dt>
+                    <dt>{boxCount > 0 ? 'Boxes' : 'Sets'}</dt>
                     <dd>{formatNumber(sets.length)}</dd>
                   </div>
                   <div>
