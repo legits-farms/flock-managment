@@ -17,7 +17,6 @@ import {
   setWeightKg,
 } from '../flock.js';
 import Dropdown from './Dropdown.jsx';
-import PhotoCapture from './PhotoCapture.jsx';
 
 // YYYY-MM-DD in local time, the format <input type="date"> expects
 const today = () => new Date().toLocaleDateString('en-CA');
@@ -84,9 +83,6 @@ const DISCOUNT_LABELS = { amount: '₹', percent: '%' };
 
 const NO_WEIGHING ={ birds: '', boxes: '', boxWeightEmpty: '', boxWeightGross: '' };
 
-// Match MAX_SET_PHOTOS and MAX_SALE_PHOTOS in server/src/models/Sale.js
-const MAX_SET_PHOTOS = 2;
-const MAX_SALE_PHOTOS = 8;
 
 // Dashboard form for selling live birds. The birds are weighed out in sets, each
 // out of one coop. Once they all are, the males and females are counted, and the
@@ -130,8 +126,6 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
   const [weighing, setWeighing] = useState(NO_WEIGHING);
   // The sets the empty boxes were weighed in: how many boxes, and their weight together
   const [emptySets, setEmptySets] = useState([]);
-  // Live photos of the set being entered
-  const [photos, setPhotos] = useState([]);
   // The number on the box being entered: they are usually filled in order
   const [boxNo, setBoxNo] = useState('1');
 
@@ -208,11 +202,6 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
   // mentioned: what is weighed is the birds alone
   const unit = boxCount > 0 ? 'Box' : 'Set';
   const units = boxCount > 0 ? 'boxes' : 'sets';
-  // Photos the set being entered can still take: a set and a whole sale each have a limit
-  const photosLeft = Math.min(
-    MAX_SET_PHOTOS,
-    MAX_SALE_PHOTOS - sets.reduce((sum, set) => sum + set.photos.length, 0),
-  );
 
   // Billed per kg with both males and females, each at its own rate per kg
   const splitKg = billBy === 'kg' && sexMix === 'both';
@@ -494,12 +483,11 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
         boxes: 1,
         boxWeightEmpty: tareKg,
         boxWeightGross: Number(weighing.boxWeightGross) || 0,
-        photos,
+        photos: [],
       },
     ]);
     // The next box usually comes out of the same coop, and weighs the same empty
     setWeighing((prev) => ({ ...prev, birds: '', boxWeightGross: '' }));
-    setPhotos([]);
     setBoxNo(/^\d+$/.test(boxNo.trim()) ? String(Number(boxNo) + 1) : '');
   }
 
@@ -533,7 +521,7 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
       if (weighing.boxes || weighing.boxWeightEmpty) {
         return 'Press “Add Empty Boxes” to keep the empty boxes you typed.';
       }
-      if (weighing.birds || weighing.boxWeightGross || photos.length > 0) {
+      if (weighing.birds || weighing.boxWeightGross) {
         return `Press “Add ${unit}” to keep the ${unit.toLowerCase()} you typed.`;
       }
       if (sets.length === 0) return `Add at least one ${unit.toLowerCase()} of birds.`;
@@ -955,8 +943,8 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
                   <h3>{boxCount > 0 ? 'Boxes of Birds' : 'Sets of Birds'}</h3>
                   <p>
                     {boxCount > 0
-                      ? 'Fill one box, weigh it, take its photo, then press Add Box.'
-                      : 'Weigh a set of birds, take its photo, then press Add Set.'}
+                      ? 'Fill one box, weigh it, then press Add Box.'
+                      : 'Weigh a set of birds, then press Add Set.'}
                   </p>
                 </div>
               </header>
@@ -1026,7 +1014,9 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
                 </>
               )}
 
-              <div className={boxCount > 0 ? 'field-row' : undefined}>
+              {/* Box No. and the birds side by side, the box weight under them; with no
+                  boxes, the birds and their weight side by side */}
+              <div className="field-row">
                 {boxCount > 0 && (
                   <label className="field">
                     <span>Box No.</span>
@@ -1049,16 +1039,15 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
                     onChange={setWeighed('birds')}
                   />
                 </label>
+                <label className={boxCount > 0 ? 'field full' : 'field'}>
+                  <span>{boxCount > 0 ? 'Box Weight with Birds (kg)' : 'Birds Weight (kg)'}</span>
+                  <input
+                    {...decimal}
+                    value={weighing.boxWeightGross}
+                    onChange={setWeighed('boxWeightGross')}
+                  />
+                </label>
               </div>
-
-              <label className="field">
-                <span>{boxCount > 0 ? 'Box Weight with Birds (kg)' : 'Birds Weight (kg)'}</span>
-                <input
-                  {...decimal}
-                  value={weighing.boxWeightGross}
-                  onChange={setWeighed('boxWeightGross')}
-                />
-              </label>
 
               <dl className="readout">
                 <div>
@@ -1073,14 +1062,6 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
                 </div>
               </dl>
 
-              <div className="field">
-                <span>Photo of this {unit}</span>
-                {photosLeft > 0 ? (
-                  <PhotoCapture value={photos} onChange={setPhotos} max={photosLeft} />
-                ) : (
-                  <p className="empty">This sale already has its {MAX_SALE_PHOTOS} photos.</p>
-                )}
-              </div>
 
               <button type="button" className="secondary add" onClick={addSet}>
                 + Add {unit}
@@ -1102,8 +1083,6 @@ export default function SaleForm({ batches, onSaved, onCancel, onNavigate }) {
                         <small>
                           {set.boxNo && `Box ${set.boxNo} · `}
                           {set.coopName} · {set.batchName}
-                          {set.photos.length > 0 &&
-                            ` · ${set.photos.length} ${set.photos.length === 1 ? 'photo' : 'photos'}`}
                         </small>
                       </div>
                       <em>{formatKg(Number((setWeightKg(set) / set.birds).toFixed(3)))} each</em>

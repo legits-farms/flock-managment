@@ -158,6 +158,11 @@ label {
   gap: 12px;
 }
 
+/* A field in a row that takes the whole width, on a line of its own */
+.field-row > .full {
+  grid-column: 1 / -1;
+}
+
 input,
 select,
 textarea {
